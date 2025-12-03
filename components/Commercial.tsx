@@ -709,7 +709,8 @@ const ApprovalSettings = () => {
     );
 };
 
-// 6. Purchasing Strategies (NEW)
+// 6. Purchasing Strategies (NEW - Commented Out)
+/*
 const PurchasingStrategies = () => {
     const [strategies, setStrategies] = useState([
         { id: 1, name: 'Compra Corporativa IT', type: 'Categoría', detail: 'Consolidación de Hardware', status: 'Activa', targetSavings: '15%' },
@@ -792,14 +793,19 @@ const PurchasingStrategies = () => {
         </div>
     );
 };
-
+*/
 
 // --- Modules Wrappers ---
 
 const ProcurementModule = () => {
-    const [activeTab, setActiveTab] = useState<'NEW_RFQ' | 'MANAGE_RFQ' | 'APPROVAL' | 'PO_LIST' | 'SETTINGS' | 'STRATEGIES'>('NEW_RFQ');
+    // Change default state from NEW_RFQ to MANAGE_RFQ (Dashboard)
+    const [activeTab, setActiveTab] = useState<'NEW_RFQ' | 'MANAGE_RFQ' | 'APPROVAL' | 'PO_LIST' | 'SETTINGS' | 'STRATEGIES'>('MANAGE_RFQ');
     const [rfqs, setRfqs] = useState<RFQ[]>([]);
     
+    // Simulate Current User Role (In a real app, this comes from AuthContext)
+    // Change this to 'USER' to test hiding the Settings button
+    const currentUserRole = 'ADMIN';
+
     // Derived state for badge counts
     const pendingApprovals = rfqs.filter(r => r.status === OrderStatus.PENDING_APPROVAL).length;
     const activeRfqs = rfqs.filter(r => r.status === OrderStatus.SENT || r.status === OrderStatus.QUOTED).length;
@@ -840,7 +846,7 @@ const ProcurementModule = () => {
              </div>
 
              {/* Navigation Cards */}
-             <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                  <button onClick={() => setActiveTab('MANAGE_RFQ')} className={`p-4 rounded-xl border flex flex-col items-center justify-center transition-all ${activeTab === 'MANAGE_RFQ' ? 'bg-white border-accent shadow-md ring-1 ring-accent' : 'bg-white border-slate-200 hover:bg-slate-50'}`}>
                     <FileText size={24} className={`mb-2 ${activeTab === 'MANAGE_RFQ' ? 'text-accent' : 'text-slate-400'}`} />
                     <span className="font-semibold text-slate-700">Seguimiento</span>
@@ -860,24 +866,28 @@ const ProcurementModule = () => {
                     <span className="font-semibold text-slate-700">Órdenes de Compra</span>
                  </button>
 
+                {/* Strategy Button Commented Out
                  <button onClick={() => setActiveTab('STRATEGIES')} className={`p-4 rounded-xl border flex flex-col items-center justify-center transition-all ${activeTab === 'STRATEGIES' ? 'bg-white border-yellow-500 shadow-md ring-1 ring-yellow-500' : 'bg-white border-slate-200 hover:bg-slate-50'}`}>
                     <Lightbulb size={24} className={`mb-2 ${activeTab === 'STRATEGIES' ? 'text-yellow-500' : 'text-slate-400'}`} />
                     <span className="font-semibold text-slate-700">Estrategias</span>
                     <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded mt-1">Admin</span>
                  </button>
+                 */}
 
-                 <button onClick={() => setActiveTab('SETTINGS')} className={`p-4 rounded-xl border flex flex-col items-center justify-center transition-all ${activeTab === 'SETTINGS' ? 'bg-white border-slate-800 shadow-md ring-1 ring-slate-800' : 'bg-white border-slate-200 hover:bg-slate-50'}`}>
-                    <Settings size={24} className={`mb-2 ${activeTab === 'SETTINGS' ? 'text-slate-800' : 'text-slate-400'}`} />
-                    <span className="font-semibold text-slate-700">Configuración</span>
-                 </button>
+                 {currentUserRole === 'ADMIN' && (
+                    <button onClick={() => setActiveTab('SETTINGS')} className={`p-4 rounded-xl border flex flex-col items-center justify-center transition-all ${activeTab === 'SETTINGS' ? 'bg-white border-slate-800 shadow-md ring-1 ring-slate-800' : 'bg-white border-slate-200 hover:bg-slate-50'}`}>
+                        <Settings size={24} className={`mb-2 ${activeTab === 'SETTINGS' ? 'text-slate-800' : 'text-slate-400'}`} />
+                        <span className="font-semibold text-slate-700">Configuración</span>
+                    </button>
+                 )}
              </div>
 
              <div className="min-h-[400px]">
                 {activeTab === 'MANAGE_RFQ' && <RFQManagement rfqs={rfqs} onUpdate={handleUpdateRFQ} />}
                 {activeTab === 'APPROVAL' && <ApprovalTray rfqs={rfqs} onApprove={handleApproveRFQ} />}
                 {activeTab === 'PO_LIST' && <PurchaseOrdersList rfqs={rfqs} />}
-                {activeTab === 'STRATEGIES' && <PurchasingStrategies />}
-                {activeTab === 'SETTINGS' && <ApprovalSettings />}
+                {/* activeTab === 'STRATEGIES' && <PurchasingStrategies /> */}
+                {activeTab === 'SETTINGS' && currentUserRole === 'ADMIN' && <ApprovalSettings />}
              </div>
         </div>
     );
