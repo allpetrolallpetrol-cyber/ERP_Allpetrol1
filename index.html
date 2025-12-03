@@ -4,8 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>ArgERP System</title>
-    <!-- We keep Tailwind CDN for simplicity in this setup, 
-         though in a full pro setup we would install it via postcss -->
+    <!-- Tailwind CDN is kept for simplicity. In a production build, postcss installation is recommended. -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
@@ -40,17 +39,17 @@
         background: #94a3b8; 
       }
     </style>
-  <script type="importmap">
+<script type="importmap">
 {
   "imports": {
-    "react/": "https://aistudiocdn.com/react@^19.2.0/",
     "react": "https://aistudiocdn.com/react@^19.2.0",
-    "jspdf": "https://aistudiocdn.com/jspdf@^3.0.4",
-    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.555.0",
     "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
     "react-router-dom": "https://aistudiocdn.com/react-router-dom@^7.10.0",
-    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.1.1",
-    "vite": "https://aistudiocdn.com/vite@^7.2.6"
+    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.555.0",
+    "jspdf": "https://aistudiocdn.com/jspdf@^3.0.4",
+    "vite": "https://aistudiocdn.com/vite@^7.2.6",
+    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.1.1"
   }
 }
 </script>
