@@ -17,138 +17,66 @@ import {
   X,
   Briefcase,
   TrendingUp,
-  Package
+  Package,
+  Truck
 } from 'lucide-react';
 import { useMasterData } from '../contexts/MasterDataContext';
 import { RFQ, OrderStatus, RFQItem, SupplierQuote, ApprovalRule } from '../types';
 
 // --- Sub Components ---
 
-// Advanced Supplier Selector with Search and Recommendations
-const SupplierMultiSelect = ({ 
-    selectedIds, 
-    onChange, 
-    suggestedSupplierIds // Changed: Now receives direct IDs from materials
-}: { 
-    selectedIds: string[], 
-    onChange: (ids: string[]) => void,
-    suggestedSupplierIds: string[]
-}) => {
-    const { suppliers } = useMasterData();
-    const [searchTerm, setSearchTerm] = useState('');
-    const [isOpen, setIsOpen] = useState(false);
-
-    // Filter Logic: Search by Name, CUIT, or Category
-    const filteredSuppliers = suppliers.filter(s => {
-        const term = searchTerm.toLowerCase();
-        return (
-            s.name.toLowerCase().includes(term) ||
-            s.cuit.includes(term) ||
-            s.categories.some(c => c.toLowerCase().includes(term))
-        );
-    });
-
-    const handleSelect = (id: string) => {
-        if (selectedIds.includes(id)) {
-            onChange(selectedIds.filter(sid => sid !== id));
-        } else {
-            onChange([...selectedIds, id]);
-        }
-    };
-
-    return (
-        <div className="w-full relative">
-            <label className="block text-sm font-medium text-slate-700 mb-2">Buscar y Seleccionar Proveedores</label>
-            
-            {/* Selected Tags */}
-            <div className="flex flex-wrap gap-2 mb-3 min-h-[32px]">
-                {selectedIds.map(id => {
-                    const s = suppliers.find(sup => sup.id === id);
-                    if(!s) return null;
-                    return (
-                        <span key={id} className="bg-slate-800 text-white text-sm px-3 py-1 rounded-full flex items-center shadow-sm animate-in zoom-in duration-200">
-                            {s.name}
-                            <button onClick={() => handleSelect(id)} className="ml-2 hover:text-red-300"><X size={14}/></button>
-                        </span>
-                    );
-                })}
-            </div>
-
-            {/* Search Input */}
-            <div className="relative">
-                <input 
-                    type="text"
-                    className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-accent outline-none bg-white"
-                    placeholder="Buscar por Nombre, CUIT o Rubro..."
-                    value={searchTerm}
-                    onChange={(e) => {
-                        setSearchTerm(e.target.value);
-                        setIsOpen(true);
-                    }}
-                    onFocus={() => setIsOpen(true)}
-                />
-                <Search className="absolute left-3 top-2.5 text-slate-400" size={18} />
-            </div>
-
-            {/* Dropdown List */}
-            {isOpen && (
-                <div className="absolute z-50 w-full bg-white mt-1 rounded-lg shadow-xl border border-slate-200 max-h-60 overflow-y-auto">
-                    <div className="sticky top-0 bg-slate-50 p-2 border-b flex justify-between items-center text-xs text-slate-500">
-                        <span>{filteredSuppliers.length} proveedores encontrados</span>
-                        <button onClick={() => setIsOpen(false)} className="hover:text-slate-800">Cerrar</button>
-                    </div>
-                    {filteredSuppliers.length > 0 ? (
-                        filteredSuppliers.map(s => {
-                            const selected = selectedIds.includes(s.id);
-                            const recommended = suggestedSupplierIds.includes(s.id);
-                            return (
-                                <div 
-                                    key={s.id}
-                                    onClick={() => handleSelect(s.id)}
-                                    className={`p-3 border-b border-slate-100 cursor-pointer hover:bg-blue-50 transition-colors flex justify-between items-center ${selected ? 'bg-blue-50' : ''}`}
-                                >
-                                    <div>
-                                        <div className="font-medium text-slate-800 flex items-center">
-                                            {s.name}
-                                            {recommended && (
-                                                <span className="ml-2 text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded border border-green-200 flex items-center">
-                                                    <CheckCircle size={10} className="mr-1"/> Asignado al Material
-                                                </span>
-                                            )}
-                                        </div>
-                                        <div className="text-xs text-slate-500">CUIT: {s.cuit} • {s.categories.join(', ')}</div>
-                                    </div>
-                                    {selected && <CheckCircle size={18} className="text-accent" />}
-                                </div>
-                            );
-                        })
-                    ) : (
-                        <div className="p-4 text-center text-slate-500 text-sm">No se encontraron proveedores.</div>
-                    )}
-                </div>
-            )}
-        </div>
-    );
-};
-
-// 1. New RFQ Form with Advanced Selector
+// 1. New RFQ Form with Per-Item Supplier Selection
 const NewRFQForm = ({ onSave, onCancel }: { onSave: (rfq: any) => void, onCancel: () => void }) => {
     const { suppliers, materials } = useMasterData();
     const [items, setItems] = useState<RFQItem[]>([]);
-    const [selectedSupplierIds, setSelectedSupplierIds] = useState<string[]>([]);
     
     // Temp item state
     const [selectedMaterialId, setSelectedMaterialId] = useState('');
     const [quantity, setQuantity] = useState(1);
+    const [selectedItemSuppliers, setSelectedItemSuppliers] = useState<string[]>([]); // Suppliers for the current item being added
+
+    // Reset item suppliers when material changes
+    useEffect(() => {
+        if (selectedMaterialId) {
+            const mat = materials.find(m => m.id === selectedMaterialId);
+            if (mat) {
+                // Pre-select suppliers associated with this material
+                setSelectedItemSuppliers(mat.assignedSupplierIds || []);
+            }
+        } else {
+            setSelectedItemSuppliers([]);
+        }
+    }, [selectedMaterialId, materials]);
+
+    const toggleItemSupplier = (supplierId: string) => {
+        if (selectedItemSuppliers.includes(supplierId)) {
+            setSelectedItemSuppliers(selectedItemSuppliers.filter(id => id !== supplierId));
+        } else {
+            setSelectedItemSuppliers([...selectedItemSuppliers, supplierId]);
+        }
+    };
 
     const addItem = () => {
         if(!selectedMaterialId) return;
         const mat = materials.find(m => m.id === selectedMaterialId);
         if(!mat) return;
 
-        setItems([...items, { materialId: mat.id, description: mat.description, quantity: quantity }]);
+        if(selectedItemSuppliers.length === 0) {
+            alert("Debe seleccionar al menos un proveedor para este material.");
+            return;
+        }
+
+        setItems([...items, { 
+            materialId: mat.id, 
+            description: mat.description, 
+            quantity: quantity,
+            targetSupplierIds: selectedItemSuppliers 
+        }]);
+        
+        // Reset form
         setSelectedMaterialId('');
         setQuantity(1);
+        setSelectedItemSuppliers([]);
     };
 
     const removeItem = (index: number) => {
@@ -157,13 +85,17 @@ const NewRFQForm = ({ onSave, onCancel }: { onSave: (rfq: any) => void, onCancel
         setItems(newItems);
     };
 
+    // Calculate the distinct list of all suppliers involved in this RFQ
+    const uniqueSupplierIds = Array.from(new Set(items.flatMap(i => i.targetSupplierIds || [])));
+    const uniqueSuppliers = suppliers.filter(s => uniqueSupplierIds.includes(s.id));
+
     const handleSubmit = () => {
-        if(items.length === 0 || selectedSupplierIds.length === 0) {
-            alert("Debe agregar items y seleccionar al menos un proveedor.");
+        if(items.length === 0) {
+            alert("Debe agregar items a la lista.");
             return;
         }
         
-        const selectedSupplierObjs = suppliers.filter(s => selectedSupplierIds.includes(s.id)).map(s => ({id: s.id, name: s.name}));
+        const selectedSupplierObjs = uniqueSuppliers.map(s => ({id: s.id, name: s.name}));
         
         const newRFQ: RFQ = {
             id: `RFQ-${Date.now()}`,
@@ -176,17 +108,17 @@ const NewRFQForm = ({ onSave, onCancel }: { onSave: (rfq: any) => void, onCancel
         };
 
         // Simulate Email sending
-        alert(`📧 Enviando correos de solicitud a:\n${selectedSupplierObjs.map(s => s.name).join('\n')}`);
+        alert(`📧 Enviando solicitudes de cotización a:\n${selectedSupplierObjs.map(s => s.name).join('\n')}`);
         onSave(newRFQ);
     };
 
-    // Calculate suggested suppliers based on selected items
-    const suggestedSupplierIds = Array.from(new Set(
-        items.flatMap(item => {
-            const mat = materials.find(m => m.id === item.materialId);
-            return mat?.assignedSupplierIds || [];
-        })
-    )) as string[];
+    const getMaterialSuppliers = (matId: string) => {
+        const mat = materials.find(m => m.id === matId);
+        if (!mat) return [];
+        // Return suppliers that are linked to the material, OR allow all suppliers if needed.
+        // For this logic, let's show ALL suppliers but highlight linked ones.
+        return suppliers;
+    };
 
     return (
         <div className="bg-white p-6 rounded-xl shadow-lg border border-slate-200 animate-in fade-in slide-in-from-bottom-4">
@@ -197,73 +129,170 @@ const NewRFQForm = ({ onSave, onCancel }: { onSave: (rfq: any) => void, onCancel
                 <button onClick={onCancel} className="text-slate-400 hover:text-slate-600"><X size={24}/></button>
             </div>
 
-            {/* Step 1: Items */}
-            <div className="mb-8 bg-slate-50 p-4 rounded-xl border border-slate-100">
-                <h4 className="text-sm font-bold text-slate-700 uppercase mb-3 flex items-center"><Package className="mr-2" size={16}/> 1. Lista de Materiales</h4>
-                <div className="flex gap-2 mb-4">
-                    <select
-                        className="flex-1 px-3 py-2 border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-accent outline-none" 
-                        value={selectedMaterialId}
-                        onChange={e => setSelectedMaterialId(e.target.value)}
-                    >
-                        <option value="">Seleccionar Material del Maestro...</option>
-                        {materials.map(m => (
-                            <option key={m.id} value={m.id}>{m.code} - {m.description}</option>
-                        ))}
-                    </select>
-                    <input 
-                        className="w-24 px-3 py-2 border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-accent outline-none" 
-                        type="number" 
-                        placeholder="Cant." 
-                        value={quantity}
-                        onChange={e => setQuantity(parseInt(e.target.value))}
-                    />
-                    <button onClick={addItem} className="bg-slate-900 text-white px-4 rounded-lg hover:bg-slate-800 font-medium shadow-sm transition-transform active:scale-95">+</button>
-                </div>
-                {items.length > 0 ? (
-                    <table className="w-full text-sm mb-2 bg-white rounded-lg overflow-hidden border border-slate-200">
-                        <thead className="bg-slate-100 text-slate-600 font-semibold">
-                            <tr>
-                                <th className="text-left px-4 py-2">Descripción</th>
-                                <th className="text-right px-4 py-2">Cantidad</th>
-                                <th className="px-4 py-2 w-10"></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {items.map((it, idx) => (
-                                <tr key={idx} className="border-b last:border-0 hover:bg-slate-50 transition-colors">
-                                    <td className="px-4 py-2">{it.description}</td>
-                                    <td className="text-right px-4 py-2 font-mono">{it.quantity}</td>
-                                    <td className="px-4 py-2 text-right">
-                                        <button onClick={() => removeItem(idx)} className="text-slate-400 hover:text-red-500"><Trash2 size={14}/></button>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                ) : (
-                    <div className="text-center py-4 text-slate-400 text-sm italic">Agregue materiales para ver los proveedores asignados</div>
-                )}
-            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                {/* Left Column: Add Items */}
+                <div className="lg:col-span-2 space-y-6">
+                    <div className="bg-slate-50 p-5 rounded-xl border border-slate-200">
+                        <h4 className="text-sm font-bold text-slate-700 uppercase mb-4 flex items-center"><Package className="mr-2" size={16}/> 1. Agregar Material</h4>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-12 gap-4 mb-4">
+                            <div className="md:col-span-8">
+                                <label className="block text-xs font-semibold text-slate-500 mb-1">Material</label>
+                                <select
+                                    className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-accent outline-none" 
+                                    value={selectedMaterialId}
+                                    onChange={e => setSelectedMaterialId(e.target.value)}
+                                >
+                                    <option value="">Seleccionar Material del Maestro...</option>
+                                    {materials.map(m => (
+                                        <option key={m.id} value={m.id}>{m.code} - {m.description}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div className="md:col-span-4">
+                                <label className="block text-xs font-semibold text-slate-500 mb-1">Cantidad</label>
+                                <div className="flex gap-2">
+                                    <input 
+                                        className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-accent outline-none" 
+                                        type="number" 
+                                        placeholder="Cant." 
+                                        value={quantity}
+                                        onChange={e => setQuantity(parseInt(e.target.value))}
+                                    />
+                                    <button onClick={addItem} className="bg-slate-900 text-white px-4 rounded-lg hover:bg-slate-800 font-medium shadow-sm transition-transform active:scale-95">+</button>
+                                </div>
+                            </div>
+                        </div>
 
-            {/* Step 2: Suppliers with MultiSelect */}
-            <div className="mb-8">
-                <h4 className="text-sm font-bold text-slate-700 uppercase mb-3 flex items-center"><Briefcase className="mr-2" size={16}/> 2. Invitar Proveedores</h4>
-                <div className="mb-2 text-xs text-slate-500">
-                    El sistema sugerirá proveedores que estén vinculados a los materiales seleccionados arriba.
-                </div>
-                <SupplierMultiSelect 
-                    selectedIds={selectedSupplierIds} 
-                    onChange={setSelectedSupplierIds}
-                    suggestedSupplierIds={suggestedSupplierIds}
-                />
-            </div>
+                        {/* Supplier Selection Area for Current Item */}
+                        {selectedMaterialId && (
+                            <div className="bg-white p-3 rounded-lg border border-slate-200 animate-in fade-in">
+                                <label className="block text-xs font-semibold text-slate-500 mb-2">Seleccionar Proveedores para este ítem:</label>
+                                <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto custom-scrollbar">
+                                    {suppliers.map(sup => {
+                                        const mat = materials.find(m => m.id === selectedMaterialId);
+                                        const isLinked = mat?.assignedSupplierIds.includes(sup.id);
+                                        const isSelected = selectedItemSuppliers.includes(sup.id);
+                                        
+                                        return (
+                                            <button 
+                                                key={sup.id}
+                                                onClick={() => toggleItemSupplier(sup.id)}
+                                                className={`text-xs px-2.5 py-1.5 rounded-md border flex items-center transition-all ${
+                                                    isSelected 
+                                                    ? 'bg-blue-50 border-blue-200 text-blue-700 font-semibold' 
+                                                    : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                                                }`}
+                                            >
+                                                {isSelected && <CheckCircle size={12} className="mr-1.5"/>}
+                                                {sup.name}
+                                                {isLinked && <span className="ml-1.5 text-[10px] bg-green-100 text-green-700 px-1 rounded">Sugerido</span>}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
+                    </div>
 
-            <div className="flex justify-end pt-4 border-t">
-                <button onClick={onCancel} className="mr-4 px-4 py-2 text-slate-600 font-medium hover:bg-slate-100 rounded-lg">Cancelar</button>
-                <button onClick={handleSubmit} className="bg-accent text-white px-6 py-2 rounded-lg hover:bg-blue-600 shadow-lg flex items-center font-bold transition-transform active:scale-95">
-                    <Mail size={18} className="mr-2"/> Generar Solicitud
-                </button>
+                    {/* Items Table */}
+                    <div>
+                        <h4 className="text-sm font-bold text-slate-700 uppercase mb-2">Items Agregados ({items.length})</h4>
+                        {items.length > 0 ? (
+                            <div className="border border-slate-200 rounded-lg overflow-hidden">
+                                <table className="w-full text-sm bg-white">
+                                    <thead className="bg-slate-100 text-slate-600 font-semibold border-b border-slate-200">
+                                        <tr>
+                                            <th className="text-left px-4 py-2">Descripción</th>
+                                            <th className="text-center px-4 py-2">Cant.</th>
+                                            <th className="text-left px-4 py-2">Proveedores Asignados</th>
+                                            <th className="px-4 py-2 w-10"></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {items.map((it, idx) => (
+                                            <tr key={idx} className="border-b last:border-0 hover:bg-slate-50 transition-colors">
+                                                <td className="px-4 py-2 font-medium text-slate-700">{it.description}</td>
+                                                <td className="text-center px-4 py-2 font-mono">{it.quantity}</td>
+                                                <td className="px-4 py-2">
+                                                    <div className="flex flex-wrap gap-1">
+                                                        {it.targetSupplierIds?.map(sid => {
+                                                            const sName = suppliers.find(s => s.id === sid)?.name;
+                                                            return (
+                                                                <span key={sid} className="text-[10px] bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded text-slate-600">
+                                                                    {sName}
+                                                                </span>
+                                                            )
+                                                        })}
+                                                    </div>
+                                                </td>
+                                                <td className="px-4 py-2 text-right">
+                                                    <button onClick={() => removeItem(idx)} className="text-slate-400 hover:text-red-500"><Trash2 size={16}/></button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        ) : (
+                            <div className="p-8 text-center bg-slate-50 rounded-lg border border-dashed border-slate-300">
+                                <p className="text-slate-400 text-sm">No hay items agregados aún.</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* Right Column: Summary */}
+                <div className="lg:col-span-1">
+                    <div className="bg-white p-5 rounded-xl border border-slate-200 sticky top-6 shadow-sm">
+                        <h4 className="text-sm font-bold text-slate-800 uppercase mb-4 flex items-center"><Briefcase className="mr-2" size={16}/> Resumen de Proveedores</h4>
+                        
+                        <div className="mb-6">
+                            <p className="text-xs text-slate-500 mb-3">
+                                Los siguientes proveedores recibirán una solicitud de cotización basada en los items asignados:
+                            </p>
+                            {uniqueSuppliers.length > 0 ? (
+                                <ul className="space-y-2">
+                                    {uniqueSuppliers.map(s => (
+                                        <li key={s.id} className="flex items-center text-sm text-slate-700 bg-slate-50 p-2 rounded border border-slate-100">
+                                            <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-xs font-bold mr-3 text-slate-600">
+                                                {s.name.substring(0, 2).toUpperCase()}
+                                            </div>
+                                            <div className="flex-1">
+                                                <div className="font-semibold">{s.name}</div>
+                                                <div className="text-xs text-slate-400">CUIT: {s.cuit}</div>
+                                            </div>
+                                        </li>
+                                    ))}
+                                </ul>
+                            ) : (
+                                <div className="text-xs text-slate-400 italic">Ningún proveedor seleccionado aún.</div>
+                            )}
+                        </div>
+
+                        <div className="border-t pt-4">
+                            <div className="flex justify-between items-center mb-2">
+                                <span className="text-sm text-slate-600">Items Totales:</span>
+                                <span className="font-bold text-slate-800">{items.length}</span>
+                            </div>
+                            <div className="flex justify-between items-center mb-6">
+                                <span className="text-sm text-slate-600">Proveedores Totales:</span>
+                                <span className="font-bold text-slate-800">{uniqueSuppliers.length}</span>
+                            </div>
+
+                            <button 
+                                onClick={handleSubmit} 
+                                disabled={items.length === 0}
+                                className="w-full bg-accent text-white py-3 rounded-lg hover:bg-blue-600 shadow-md flex items-center justify-center font-bold transition-transform active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                <Mail size={18} className="mr-2"/> Generar Solicitud
+                            </button>
+                            <button onClick={onCancel} className="w-full mt-3 py-2 text-slate-500 font-medium hover:text-slate-800 text-sm">
+                                Cancelar
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     );
@@ -346,24 +375,34 @@ const RFQManagement = ({ rfqs, onUpdate }: { rfqs: RFQ[], onUpdate: (rfq: RFQ) =
                             <AlertCircle size={16} className="mr-2 mt-0.5 flex-shrink-0"/>
                             <div>
                                 <p className="font-bold">Modo Simulación</p>
-                                <p>Ingrese manualmente los precios recibidos por los proveedores para continuar con el proceso.</p>
+                                <p>Ingrese manualmente el precio TOTAL ofertado por cada proveedor para continuar con el proceso.</p>
                             </div>
                         </div>
                         <div className="border rounded-xl overflow-hidden">
-                            {selectedRfq.selectedSuppliers.map((s, idx) => (
-                                <div key={s.id} className={`flex items-center justify-between p-4 bg-white ${idx !== selectedRfq.selectedSuppliers.length -1 ? 'border-b' : ''}`}>
-                                    <span className="font-medium text-slate-700">{s.name}</span>
-                                    <div className="flex items-center">
-                                        <span className="mr-2 text-slate-400 font-semibold">$</span>
-                                        <input 
-                                            type="number" 
-                                            className="border border-slate-300 rounded-lg px-3 py-2 w-40 text-right bg-white focus:ring-2 focus:ring-accent outline-none" 
-                                            placeholder="0.00"
-                                            onChange={(e) => setTempPrices({...tempPrices, [s.id]: parseFloat(e.target.value)})}
-                                        />
+                            {selectedRfq.selectedSuppliers.map((s, idx) => {
+                                // Find items for this supplier to display as a hint
+                                const supplierItems = selectedRfq.items.filter(i => i.targetSupplierIds?.includes(s.id));
+                                
+                                return (
+                                    <div key={s.id} className={`p-4 bg-white ${idx !== selectedRfq.selectedSuppliers.length -1 ? 'border-b' : ''}`}>
+                                        <div className="flex items-center justify-between mb-2">
+                                            <span className="font-medium text-slate-700">{s.name}</span>
+                                            <div className="flex items-center">
+                                                <span className="mr-2 text-slate-400 font-semibold">$</span>
+                                                <input 
+                                                    type="number" 
+                                                    className="border border-slate-300 rounded-lg px-3 py-2 w-40 text-right bg-white focus:ring-2 focus:ring-accent outline-none" 
+                                                    placeholder="0.00"
+                                                    onChange={(e) => setTempPrices({...tempPrices, [s.id]: parseFloat(e.target.value)})}
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="text-xs text-slate-500">
+                                            Cotiza por: {supplierItems.map(i => i.description).join(', ')}
+                                        </div>
                                     </div>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
                         <div className="flex justify-end mt-4">
                             <button onClick={() => handleLoadPrices(selectedRfq)} className="bg-slate-900 text-white px-6 py-2.5 rounded-lg hover:bg-slate-800 shadow-md transition-all">

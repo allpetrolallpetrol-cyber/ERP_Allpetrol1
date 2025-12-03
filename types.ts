@@ -40,6 +40,7 @@ export interface RFQItem {
   materialId: string;
   description: string; // Copied from Material for display/snapshot
   quantity: number;
+  targetSupplierIds?: string[]; // New: Suppliers selected specifically for this item
 }
 
 export interface SupplierQuote {
