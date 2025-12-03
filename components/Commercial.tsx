@@ -18,7 +18,10 @@ import {
   Briefcase,
   TrendingUp,
   Package,
-  Truck
+  Truck,
+  Lightbulb,
+  Target,
+  BarChart3
 } from 'lucide-react';
 import { useMasterData } from '../contexts/MasterDataContext';
 import { RFQ, OrderStatus, RFQItem, SupplierQuote, ApprovalRule } from '../types';
@@ -706,11 +709,95 @@ const ApprovalSettings = () => {
     );
 };
 
+// 6. Purchasing Strategies (NEW)
+const PurchasingStrategies = () => {
+    const [strategies, setStrategies] = useState([
+        { id: 1, name: 'Compra Corporativa IT', type: 'Categoría', detail: 'Consolidación de Hardware', status: 'Activa', targetSavings: '15%' },
+        { id: 2, name: 'Contrato Marco Rodamientos', type: 'Proveedor', detail: 'Acuerdo Anual con SKF', status: 'En Revisión', targetSavings: '8%' }
+    ]);
+    const [showForm, setShowForm] = useState(false);
+    const [newStrategy, setNewStrategy] = useState({ name: '', type: 'Categoría', detail: '' });
+
+    const handleAdd = () => {
+        if(!newStrategy.name) return;
+        setStrategies([...strategies, { ...newStrategy, id: Date.now(), status: 'Activa', targetSavings: '0%' }]);
+        setNewStrategy({ name: '', type: 'Categoría', detail: '' });
+        setShowForm(false);
+    };
+
+    return (
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+            <div className="flex justify-between items-center mb-6">
+                <div>
+                    <h3 className="text-xl font-bold text-slate-800 flex items-center">
+                        <Lightbulb className="mr-2 text-yellow-500" /> Estrategias de Compra
+                    </h3>
+                    <p className="text-sm text-slate-500">Definición de lineamientos estratégicos para la adquisición de bienes.</p>
+                </div>
+                <button onClick={() => setShowForm(!showForm)} className="bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-800">
+                    {showForm ? 'Cancelar' : 'Nueva Estrategia'}
+                </button>
+            </div>
+
+            {showForm && (
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 mb-6 animate-in slide-in-from-top-2">
+                    <h4 className="font-bold text-sm text-slate-700 mb-3">Definir Nueva Estrategia</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                        <input 
+                            placeholder="Nombre de la Estrategia" 
+                            className="px-3 py-2 border rounded-lg"
+                            value={newStrategy.name}
+                            onChange={e => setNewStrategy({...newStrategy, name: e.target.value})}
+                        />
+                        <select 
+                            className="px-3 py-2 border rounded-lg bg-white"
+                            value={newStrategy.type}
+                            onChange={e => setNewStrategy({...newStrategy, type: e.target.value})}
+                        >
+                            <option>Categoría</option>
+                            <option>Proveedor</option>
+                            <option>Global</option>
+                        </select>
+                        <input 
+                            placeholder="Detalle / Alcance" 
+                            className="px-3 py-2 border rounded-lg"
+                            value={newStrategy.detail}
+                            onChange={e => setNewStrategy({...newStrategy, detail: e.target.value})}
+                        />
+                    </div>
+                    <div className="flex justify-end">
+                        <button onClick={handleAdd} className="bg-accent text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm">Guardar Estrategia</button>
+                    </div>
+                </div>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {strategies.map(s => (
+                    <div key={s.id} className="border border-slate-200 rounded-xl p-5 hover:shadow-md transition-shadow bg-white relative overflow-hidden">
+                        <div className={`absolute top-0 right-0 w-24 h-24 -mr-12 -mt-12 rounded-full opacity-10 ${s.status === 'Activa' ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
+                        <div className="flex justify-between items-start mb-2 relative z-10">
+                            <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500 border px-1.5 rounded">{s.type}</span>
+                            <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${s.status === 'Activa' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>{s.status}</span>
+                        </div>
+                        <h4 className="font-bold text-slate-800 text-lg mb-1 relative z-10">{s.name}</h4>
+                        <p className="text-sm text-slate-500 mb-4">{s.detail}</p>
+                        
+                        <div className="flex items-center text-xs font-semibold text-slate-600 bg-slate-50 p-2 rounded relative z-10">
+                            <Target size={14} className="mr-2 text-accent"/>
+                            Objetivo Ahorro: {s.targetSavings}
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+};
+
 
 // --- Modules Wrappers ---
 
 const ProcurementModule = () => {
-    const [activeTab, setActiveTab] = useState<'NEW_RFQ' | 'MANAGE_RFQ' | 'APPROVAL' | 'PO_LIST' | 'SETTINGS'>('NEW_RFQ');
+    const [activeTab, setActiveTab] = useState<'NEW_RFQ' | 'MANAGE_RFQ' | 'APPROVAL' | 'PO_LIST' | 'SETTINGS' | 'STRATEGIES'>('NEW_RFQ');
     const [rfqs, setRfqs] = useState<RFQ[]>([]);
     
     // Derived state for badge counts
@@ -753,7 +840,7 @@ const ProcurementModule = () => {
              </div>
 
              {/* Navigation Cards */}
-             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+             <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                  <button onClick={() => setActiveTab('MANAGE_RFQ')} className={`p-4 rounded-xl border flex flex-col items-center justify-center transition-all ${activeTab === 'MANAGE_RFQ' ? 'bg-white border-accent shadow-md ring-1 ring-accent' : 'bg-white border-slate-200 hover:bg-slate-50'}`}>
                     <FileText size={24} className={`mb-2 ${activeTab === 'MANAGE_RFQ' ? 'text-accent' : 'text-slate-400'}`} />
                     <span className="font-semibold text-slate-700">Seguimiento</span>
@@ -773,6 +860,12 @@ const ProcurementModule = () => {
                     <span className="font-semibold text-slate-700">Órdenes de Compra</span>
                  </button>
 
+                 <button onClick={() => setActiveTab('STRATEGIES')} className={`p-4 rounded-xl border flex flex-col items-center justify-center transition-all ${activeTab === 'STRATEGIES' ? 'bg-white border-yellow-500 shadow-md ring-1 ring-yellow-500' : 'bg-white border-slate-200 hover:bg-slate-50'}`}>
+                    <Lightbulb size={24} className={`mb-2 ${activeTab === 'STRATEGIES' ? 'text-yellow-500' : 'text-slate-400'}`} />
+                    <span className="font-semibold text-slate-700">Estrategias</span>
+                    <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded mt-1">Admin</span>
+                 </button>
+
                  <button onClick={() => setActiveTab('SETTINGS')} className={`p-4 rounded-xl border flex flex-col items-center justify-center transition-all ${activeTab === 'SETTINGS' ? 'bg-white border-slate-800 shadow-md ring-1 ring-slate-800' : 'bg-white border-slate-200 hover:bg-slate-50'}`}>
                     <Settings size={24} className={`mb-2 ${activeTab === 'SETTINGS' ? 'text-slate-800' : 'text-slate-400'}`} />
                     <span className="font-semibold text-slate-700">Configuración</span>
@@ -783,6 +876,7 @@ const ProcurementModule = () => {
                 {activeTab === 'MANAGE_RFQ' && <RFQManagement rfqs={rfqs} onUpdate={handleUpdateRFQ} />}
                 {activeTab === 'APPROVAL' && <ApprovalTray rfqs={rfqs} onApprove={handleApproveRFQ} />}
                 {activeTab === 'PO_LIST' && <PurchaseOrdersList rfqs={rfqs} />}
+                {activeTab === 'STRATEGIES' && <PurchasingStrategies />}
                 {activeTab === 'SETTINGS' && <ApprovalSettings />}
              </div>
         </div>
