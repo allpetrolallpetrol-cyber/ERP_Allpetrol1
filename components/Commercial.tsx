@@ -21,7 +21,9 @@ import {
   Truck,
   Lightbulb,
   Target,
-  BarChart3
+  BarChart3,
+  FileDigit,
+  List
 } from 'lucide-react';
 import { useMasterData } from '../contexts/MasterDataContext';
 import { RFQ, OrderStatus, RFQItem, SupplierQuote, ApprovalRule } from '../types';
@@ -305,6 +307,7 @@ const NewRFQForm = ({ onSave, onCancel }: { onSave: (rfq: any) => void, onCancel
 const RFQManagement = ({ rfqs, onUpdate }: { rfqs: RFQ[], onUpdate: (rfq: RFQ) => void }) => {
     const [selectedRfq, setSelectedRfq] = useState<RFQ | null>(null);
     const [tempPrices, setTempPrices] = useState<{[key: string]: number}>({}); // key: supplierId
+    const [tempReferences, setTempReferences] = useState<{[key: string]: string}>({}); // key: supplierId, value: quote #
     const { users, approvalRules } = useMasterData();
 
     const handleLoadPrices = (rfq: RFQ) => {
@@ -313,6 +316,7 @@ const RFQManagement = ({ rfqs, onUpdate }: { rfqs: RFQ[], onUpdate: (rfq: RFQ) =
             supplierId: s.id,
             supplierName: s.name,
             price: tempPrices[s.id] || 0,
+            quoteReference: tempReferences[s.id] || '',
             isSelected: false
         }));
         
@@ -322,6 +326,7 @@ const RFQManagement = ({ rfqs, onUpdate }: { rfqs: RFQ[], onUpdate: (rfq: RFQ) =
             status: OrderStatus.QUOTED
         });
         setTempPrices({});
+        setTempReferences({});
         setSelectedRfq(null);
     };
 
@@ -378,7 +383,7 @@ const RFQManagement = ({ rfqs, onUpdate }: { rfqs: RFQ[], onUpdate: (rfq: RFQ) =
                             <AlertCircle size={16} className="mr-2 mt-0.5 flex-shrink-0"/>
                             <div>
                                 <p className="font-bold">Modo Simulación</p>
-                                <p>Ingrese manualmente el precio TOTAL ofertado por cada proveedor para continuar con el proceso.</p>
+                                <p>Ingrese manualmente el Nro de Presupuesto y el Precio Total ofertado por cada proveedor.</p>
                             </div>
                         </div>
                         <div className="border rounded-xl overflow-hidden">
@@ -387,28 +392,53 @@ const RFQManagement = ({ rfqs, onUpdate }: { rfqs: RFQ[], onUpdate: (rfq: RFQ) =
                                 const supplierItems = selectedRfq.items.filter(i => i.targetSupplierIds?.includes(s.id));
                                 
                                 return (
-                                    <div key={s.id} className={`p-4 bg-white ${idx !== selectedRfq.selectedSuppliers.length -1 ? 'border-b' : ''}`}>
-                                        <div className="flex items-center justify-between mb-2">
-                                            <span className="font-medium text-slate-700">{s.name}</span>
-                                            <div className="flex items-center">
-                                                <span className="mr-2 text-slate-400 font-semibold">$</span>
-                                                <input 
-                                                    type="number" 
-                                                    className="border border-slate-300 rounded-lg px-3 py-2 w-40 text-right bg-white focus:ring-2 focus:ring-accent outline-none" 
-                                                    placeholder="0.00"
-                                                    onChange={(e) => setTempPrices({...tempPrices, [s.id]: parseFloat(e.target.value)})}
-                                                />
+                                    <div key={s.id} className={`p-5 bg-white ${idx !== selectedRfq.selectedSuppliers.length -1 ? 'border-b' : ''}`}>
+                                        <div className="flex flex-col md:flex-row md:items-center justify-between mb-4 gap-4">
+                                            <span className="font-bold text-slate-700 text-lg">{s.name}</span>
+                                            
+                                            <div className="flex flex-col md:flex-row gap-4">
+                                                {/* Quote Reference Input */}
+                                                <div className="flex items-center">
+                                                    <FileDigit size={16} className="text-slate-400 mr-2" />
+                                                    <input 
+                                                        type="text" 
+                                                        className="border border-slate-300 rounded-lg px-3 py-2 w-48 text-sm bg-white focus:ring-2 focus:ring-accent outline-none" 
+                                                        placeholder="Nro. Presupuesto (Ref)"
+                                                        onChange={(e) => setTempReferences({...tempReferences, [s.id]: e.target.value})}
+                                                    />
+                                                </div>
+
+                                                {/* Price Input */}
+                                                <div className="flex items-center">
+                                                    <span className="mr-2 text-slate-400 font-semibold">$</span>
+                                                    <input 
+                                                        type="number" 
+                                                        className="border border-slate-300 rounded-lg px-3 py-2 w-40 text-right bg-white focus:ring-2 focus:ring-accent outline-none font-bold" 
+                                                        placeholder="0.00"
+                                                        onChange={(e) => setTempPrices({...tempPrices, [s.id]: parseFloat(e.target.value)})}
+                                                    />
+                                                </div>
                                             </div>
                                         </div>
-                                        <div className="text-xs text-slate-500">
-                                            Cotiza por: {supplierItems.map(i => i.description).join(', ')}
+                                        
+                                        {/* Detailed Item List */}
+                                        <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
+                                            <p className="text-xs font-bold text-slate-500 mb-2 flex items-center uppercase"><List size={12} className="mr-1"/> Detalle a Cotizar:</p>
+                                            <ul className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                                {supplierItems.map((i, iIdx) => (
+                                                    <li key={iIdx} className="text-sm text-slate-600 flex justify-between border-b border-slate-200 border-dashed pb-1 last:border-0 last:pb-0">
+                                                        <span>{i.description}</span>
+                                                        <span className="font-mono font-semibold bg-white px-1 rounded border border-slate-200 text-xs">x{i.quantity}</span>
+                                                    </li>
+                                                ))}
+                                            </ul>
                                         </div>
                                     </div>
                                 );
                             })}
                         </div>
                         <div className="flex justify-end mt-4">
-                            <button onClick={() => handleLoadPrices(selectedRfq)} className="bg-slate-900 text-white px-6 py-2.5 rounded-lg hover:bg-slate-800 shadow-md transition-all">
+                            <button onClick={() => handleLoadPrices(selectedRfq)} className="bg-slate-900 text-white px-6 py-2.5 rounded-lg hover:bg-slate-800 shadow-md transition-all font-medium">
                                 Guardar Cotizaciones
                             </button>
                         </div>
@@ -418,23 +448,73 @@ const RFQManagement = ({ rfqs, onUpdate }: { rfqs: RFQ[], onUpdate: (rfq: RFQ) =
                 {selectedRfq.status === OrderStatus.QUOTED && (
                     <div className="space-y-6 animate-in fade-in">
                         <h4 className="font-bold text-slate-700">Comparativa de Precios</h4>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                             {selectedRfq.quotes.map(q => {
-                                const isCheapest = Math.min(...selectedRfq.quotes.map(qq => qq.price)) === q.price;
+                                // Logic to determine if this quote is the cheapest considering ONLY competitors quoting the SAME items
+                                // 1. Get the items IDs for this specific quote
+                                const myItemsIds = selectedRfq.items
+                                    .filter(i => i.targetSupplierIds?.includes(q.supplierId))
+                                    .map(i => i.materialId)
+                                    .sort();
+                                
+                                const mySignature = myItemsIds.join('|');
+
+                                // 2. Find other quotes that are quoting the EXACT same items (Signature match)
+                                const comparableQuotes = selectedRfq.quotes.filter(otherQ => {
+                                    const otherItemsIds = selectedRfq.items
+                                        .filter(i => i.targetSupplierIds?.includes(otherQ.supplierId))
+                                        .map(i => i.materialId)
+                                        .sort();
+                                    return otherItemsIds.join('|') === mySignature;
+                                });
+
+                                // 3. Is it cheapest in its group?
+                                // Only show "Best Price" if there is actually a competition (more than 1 supplier for this exact set of items)
+                                const isComparable = comparableQuotes.length > 1;
+                                const minPriceInGroup = Math.min(...comparableQuotes.map(cq => cq.price));
+                                const isCheapest = isComparable && q.price === minPriceInGroup;
+
+                                // Get items for this quote for display
+                                const quoteItems = selectedRfq.items.filter(i => i.targetSupplierIds?.includes(q.supplierId));
+                                
                                 return (
-                                    <div key={q.supplierId} className={`p-5 border rounded-xl flex flex-col justify-between bg-white shadow-sm hover:shadow-md transition-shadow relative overflow-hidden ${isCheapest ? 'border-green-400 ring-1 ring-green-100' : 'border-slate-200'}`}>
-                                        {isCheapest && <div className="absolute top-0 right-0 bg-green-500 text-white text-[10px] px-2 py-0.5 rounded-bl-lg font-bold">MEJOR PRECIO</div>}
-                                        <div className="mb-4">
-                                            <div className="font-bold text-lg text-slate-800 leading-tight mb-1">{q.supplierName}</div>
-                                            <div className="text-slate-400 text-xs">Entrega est: 3 días</div>
-                                        </div>
-                                        <div>
+                                    <div key={q.supplierId} className={`p-0 border rounded-xl flex flex-col justify-between bg-white shadow-sm hover:shadow-lg transition-all relative overflow-hidden ${isCheapest ? 'border-green-400 ring-2 ring-green-100' : 'border-slate-200'}`}>
+                                        {isCheapest && <div className="absolute top-0 right-0 bg-green-500 text-white text-[10px] px-2 py-0.5 rounded-bl-lg font-bold z-10">MEJOR PRECIO</div>}
+                                        
+                                        <div className="p-5">
+                                            <div className="mb-4">
+                                                <div className="font-bold text-lg text-slate-800 leading-tight mb-1">{q.supplierName}</div>
+                                                <div className="flex items-center text-slate-500 text-xs mt-1">
+                                                    <FileDigit size={12} className="mr-1"/> 
+                                                    Ref: <span className="font-mono ml-1 font-semibold text-slate-700">{q.quoteReference || 'S/N'}</span>
+                                                </div>
+                                            </div>
+                                            
                                             <div className="text-3xl font-bold text-slate-800 mb-4 tracking-tight">${q.price.toLocaleString()}</div>
-                                            <button 
+                                            
+                                            <div className="bg-slate-50 rounded-lg p-3 text-xs text-slate-600 mb-2 border border-slate-100 max-h-40 overflow-y-auto custom-scrollbar">
+                                                <p className="font-bold mb-1 uppercase text-slate-400 text-[10px]">Items Cotizados:</p>
+                                                <ul className="space-y-1">
+                                                    {quoteItems.map((qi, idx) => (
+                                                        <li key={idx} className="flex justify-between">
+                                                            <span className="truncate pr-2" title={qi.description}>{qi.description}</span>
+                                                            <span className="font-mono font-bold">x{qi.quantity}</span>
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        </div>
+
+                                        <div className="p-4 bg-slate-50 border-t border-slate-100 mt-auto">
+                                             <button 
                                                 onClick={() => handleAdjudicate(selectedRfq, q.supplierId, q.price)}
-                                                className="w-full bg-accent text-white py-2 rounded-lg text-sm font-semibold hover:bg-blue-600 transition-colors shadow-sm"
+                                                className={`w-full py-2 rounded-lg text-sm font-bold shadow-sm transition-all active:scale-95 ${
+                                                    isCheapest 
+                                                    ? 'bg-green-600 text-white hover:bg-green-700' 
+                                                    : 'bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 hover:text-slate-900'
+                                                }`}
                                             >
-                                                Adjudicar
+                                                {isCheapest ? 'Adjudicar (Mejor Opción)' : 'Adjudicar'}
                                             </button>
                                         </div>
                                     </div>

@@ -47,6 +47,7 @@ export interface SupplierQuote {
   supplierId: string;
   supplierName: string;
   price: number; // Total price for the RFQ or per item logic (simplified to total for now)
+  quoteReference?: string; // New: Supplier's budget/quote number
   deliveryDate?: string;
   isSelected: boolean; // Is this the winning quote?
 }
