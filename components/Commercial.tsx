@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
+import { jsPDF } from 'jspdf';
 import { 
   Plus, 
   FileText, 
@@ -23,10 +24,15 @@ import {
   Target,
   BarChart3,
   FileDigit,
-  List
+  List,
+  Edit2,
+  Undo2,
+  Printer,
+  Layers,
+  Save
 } from 'lucide-react';
 import { useMasterData } from '../contexts/MasterDataContext';
-import { RFQ, OrderStatus, RFQItem, SupplierQuote, ApprovalRule } from '../types';
+import { RFQ, OrderStatus, RFQItem, SupplierQuote, ApprovalRule, QuoteItemDetail } from '../types';
 
 // --- Sub Components ---
 
@@ -84,9 +90,32 @@ const NewRFQForm = ({ onSave, onCancel }: { onSave: (rfq: any) => void, onCancel
         setSelectedItemSuppliers([]);
     };
 
+    const editItem = (index: number) => {
+        const itemToEdit = items[index];
+        setSelectedMaterialId(itemToEdit.materialId);
+        setQuantity(itemToEdit.quantity);
+        setSelectedItemSuppliers(itemToEdit.targetSupplierIds || []);
+        
+        // Remove from list so it can be re-added
+        removeItem(index);
+    };
+
     const removeItem = (index: number) => {
         const newItems = [...items];
         newItems.splice(index, 1);
+        setItems(newItems);
+    };
+
+    const removeSupplierFromItem = (itemIndex: number, supplierId: string) => {
+        const newItems = [...items];
+        const item = newItems[itemIndex];
+        if (item.targetSupplierIds) {
+            item.targetSupplierIds = item.targetSupplierIds.filter(id => id !== supplierId);
+            // If no suppliers left, warn user or remove item? Let's just update
+            if (item.targetSupplierIds.length === 0) {
+                alert("Atención: Has quitado todos los proveedores de este ítem.");
+            }
+        }
         setItems(newItems);
     };
 
@@ -117,14 +146,6 @@ const NewRFQForm = ({ onSave, onCancel }: { onSave: (rfq: any) => void, onCancel
         onSave(newRFQ);
     };
 
-    const getMaterialSuppliers = (matId: string) => {
-        const mat = materials.find(m => m.id === matId);
-        if (!mat) return [];
-        // Return suppliers that are linked to the material, OR allow all suppliers if needed.
-        // For this logic, let's show ALL suppliers but highlight linked ones.
-        return suppliers;
-    };
-
     return (
         <div className="bg-white p-6 rounded-xl shadow-lg border border-slate-200 animate-in fade-in slide-in-from-bottom-4">
             <div className="flex justify-between items-center mb-6 border-b pb-4">
@@ -138,7 +159,7 @@ const NewRFQForm = ({ onSave, onCancel }: { onSave: (rfq: any) => void, onCancel
                 {/* Left Column: Add Items */}
                 <div className="lg:col-span-2 space-y-6">
                     <div className="bg-slate-50 p-5 rounded-xl border border-slate-200">
-                        <h4 className="text-sm font-bold text-slate-700 uppercase mb-4 flex items-center"><Package className="mr-2" size={16}/> 1. Agregar Material</h4>
+                        <h4 className="text-sm font-bold text-slate-700 uppercase mb-4 flex items-center"><Package className="mr-2" size={16}/> 1. Agregar / Editar Material</h4>
                         
                         <div className="grid grid-cols-1 md:grid-cols-12 gap-4 mb-4">
                             <div className="md:col-span-8">
@@ -164,7 +185,9 @@ const NewRFQForm = ({ onSave, onCancel }: { onSave: (rfq: any) => void, onCancel
                                         value={quantity}
                                         onChange={e => setQuantity(parseInt(e.target.value))}
                                     />
-                                    <button onClick={addItem} className="bg-slate-900 text-white px-4 rounded-lg hover:bg-slate-800 font-medium shadow-sm transition-transform active:scale-95">+</button>
+                                    <button onClick={addItem} className="bg-slate-900 text-white px-4 rounded-lg hover:bg-slate-800 font-medium shadow-sm transition-transform active:scale-95">
+                                        {items.find(i => i.materialId === selectedMaterialId) ? 'Actualizar' : '+'}
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -211,7 +234,7 @@ const NewRFQForm = ({ onSave, onCancel }: { onSave: (rfq: any) => void, onCancel
                                             <th className="text-left px-4 py-2">Descripción</th>
                                             <th className="text-center px-4 py-2">Cant.</th>
                                             <th className="text-left px-4 py-2">Proveedores Asignados</th>
-                                            <th className="px-4 py-2 w-10"></th>
+                                            <th className="px-4 py-2 w-20 text-right">Acciones</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -224,15 +247,29 @@ const NewRFQForm = ({ onSave, onCancel }: { onSave: (rfq: any) => void, onCancel
                                                         {it.targetSupplierIds?.map(sid => {
                                                             const sName = suppliers.find(s => s.id === sid)?.name;
                                                             return (
-                                                                <span key={sid} className="text-[10px] bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded text-slate-600">
+                                                                <span key={sid} className="group relative text-[10px] bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded text-slate-600 flex items-center hover:bg-slate-200 cursor-default">
                                                                     {sName}
+                                                                    <button 
+                                                                        onClick={() => removeSupplierFromItem(idx, sid)}
+                                                                        className="ml-1 text-slate-400 hover:text-red-500 hidden group-hover:inline-block"
+                                                                        title="Quitar este proveedor"
+                                                                    >
+                                                                        <X size={10} />
+                                                                    </button>
                                                                 </span>
                                                             )
                                                         })}
                                                     </div>
                                                 </td>
                                                 <td className="px-4 py-2 text-right">
-                                                    <button onClick={() => removeItem(idx)} className="text-slate-400 hover:text-red-500"><Trash2 size={16}/></button>
+                                                    <div className="flex items-center justify-end space-x-1">
+                                                        <button onClick={() => editItem(idx)} className="p-1.5 text-slate-400 hover:text-blue-500 hover:bg-blue-50 rounded" title="Editar Item">
+                                                            <Edit2 size={16}/>
+                                                        </button>
+                                                        <button onClick={() => removeItem(idx)} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded" title="Eliminar Item">
+                                                            <Trash2 size={16}/>
+                                                        </button>
+                                                    </div>
                                                 </td>
                                             </tr>
                                         ))}
@@ -306,26 +343,55 @@ const NewRFQForm = ({ onSave, onCancel }: { onSave: (rfq: any) => void, onCancel
 // 2. Manage RFQs (Quoting & Adjudication)
 const RFQManagement = ({ rfqs, onUpdate }: { rfqs: RFQ[], onUpdate: (rfq: RFQ) => void }) => {
     const [selectedRfq, setSelectedRfq] = useState<RFQ | null>(null);
-    const [tempPrices, setTempPrices] = useState<{[key: string]: number}>({}); // key: supplierId
+    
+    // Store unit prices: { supplierId: { materialId: price } }
+    const [tempUnitPrices, setTempUnitPrices] = useState<Record<string, Record<string, string>>>({}); 
     const [tempReferences, setTempReferences] = useState<{[key: string]: string}>({}); // key: supplierId, value: quote #
+    
     const { users, approvalRules } = useMasterData();
 
-    const handleLoadPrices = (rfq: RFQ) => {
-        // Simulate loading prices for selected suppliers
-        const newQuotes: SupplierQuote[] = rfq.selectedSuppliers.map(s => ({
-            supplierId: s.id,
-            supplierName: s.name,
-            price: tempPrices[s.id] || 0,
-            quoteReference: tempReferences[s.id] || '',
-            isSelected: false
+    const handleUnitPriceChange = (supplierId: string, materialId: string, value: string) => {
+        setTempUnitPrices(prev => ({
+            ...prev,
+            [supplierId]: {
+                ...(prev[supplierId] || {}),
+                [materialId]: value
+            }
         }));
+    };
+
+    const handleLoadPrices = (rfq: RFQ) => {
+        // Build the quote objects from the entered unit prices
+        const newQuotes: SupplierQuote[] = rfq.selectedSuppliers.map(s => {
+            const supplierItems = rfq.items.filter(i => i.targetSupplierIds?.includes(s.id));
+            const quoteItems: QuoteItemDetail[] = [];
+            let totalQuotePrice = 0;
+
+            supplierItems.forEach(item => {
+                const unitPrice = parseFloat(tempUnitPrices[s.id]?.[item.materialId] || '0');
+                totalQuotePrice += unitPrice * item.quantity;
+                quoteItems.push({
+                    materialId: item.materialId,
+                    unitPrice: unitPrice
+                });
+            });
+
+            return {
+                supplierId: s.id,
+                supplierName: s.name,
+                price: totalQuotePrice,
+                items: quoteItems,
+                quoteReference: tempReferences[s.id] || '',
+                isSelected: false
+            };
+        });
         
         onUpdate({
             ...rfq,
             quotes: newQuotes,
             status: OrderStatus.QUOTED
         });
-        setTempPrices({});
+        setTempUnitPrices({});
         setTempReferences({});
         setSelectedRfq(null);
     };
@@ -338,22 +404,20 @@ const RFQManagement = ({ rfqs, onUpdate }: { rfqs: RFQ[], onUpdate: (rfq: RFQ) =
         }));
         
         // 2. Check Approval Schema Logic
-        // Find a rule where minAmount <= totalAmount <= maxAmount
         const matchingRule = approvalRules.find(rule => totalAmount >= rule.minAmount && totalAmount <= rule.maxAmount);
 
-        let nextStatus = OrderStatus.APPROVED; // Default if no rule matches (e.g. tiny amount), or maybe pending Admin?
+        let nextStatus = OrderStatus.APPROVED;
         let requiredApprover = undefined;
 
         if (matchingRule) {
             nextStatus = OrderStatus.PENDING_APPROVAL;
             requiredApprover = matchingRule.approverId;
             const approverUser = users.find(u => u.id === requiredApprover);
-            alert(`ℹ️ Según el esquema de liberación:\n\nEl monto $${totalAmount} requiere aprobación de: ${approverUser?.name || 'Admin'}`);
+            alert(`ℹ️ Adjudicación Exitosa.\n\nSegún el esquema de liberación, el monto $${totalAmount} requiere aprobación de: ${approverUser?.name || 'Admin'}`);
         } else {
-             // Fallback logic
              nextStatus = OrderStatus.PENDING_APPROVAL;
              requiredApprover = users.find(u => u.role === 'ADMIN')?.id;
-             alert(`ℹ️ No se encontró regla específica. Se solicita aprobación al Administrador por defecto.`);
+             alert(`ℹ️ Adjudicación Exitosa.\n\nSe solicita aprobación al Administrador por defecto.`);
         }
         
         onUpdate({
@@ -365,6 +429,17 @@ const RFQManagement = ({ rfqs, onUpdate }: { rfqs: RFQ[], onUpdate: (rfq: RFQ) =
         });
     };
 
+    const handleRevertAdjudication = (rfq: RFQ) => {
+        const revertedRfq: RFQ = {
+            ...rfq,
+            status: OrderStatus.QUOTED,
+            winnerSupplierId: undefined,
+            requiredApproverId: undefined,
+            quotes: rfq.quotes.map(q => ({...q, isSelected: false}))
+        };
+        onUpdate(revertedRfq);
+    };
+
     if (selectedRfq) {
         return (
             <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
@@ -374,92 +449,130 @@ const RFQManagement = ({ rfqs, onUpdate }: { rfqs: RFQ[], onUpdate: (rfq: RFQ) =
                         <h3 className="text-xl font-bold text-slate-800">{selectedRfq.number}</h3>
                         <p className="text-sm text-slate-500">Gestión de Cotizaciones y Adjudicación</p>
                     </div>
-                    <span className="font-bold text-slate-700 bg-slate-100 px-3 py-1 rounded-lg">{selectedRfq.status}</span>
+                    <span className={`font-bold text-slate-700 px-3 py-1 rounded-lg ${selectedRfq.status === OrderStatus.PENDING_APPROVAL ? 'bg-orange-100 text-orange-700' : 'bg-slate-100'}`}>{selectedRfq.status}</span>
                 </div>
 
+                {/* --- 1. SIMULATION MODE (SENT) --- */}
                 {selectedRfq.status === OrderStatus.SENT && (
                     <div className="space-y-4">
                         <div className="bg-blue-50 p-4 rounded-lg text-sm text-blue-800 border border-blue-100 flex items-start">
                             <AlertCircle size={16} className="mr-2 mt-0.5 flex-shrink-0"/>
                             <div>
-                                <p className="font-bold">Modo Simulación</p>
-                                <p>Ingrese manualmente el Nro de Presupuesto y el Precio Total ofertado por cada proveedor.</p>
+                                <p className="font-bold">Modo Simulación: Carga de Precios por Ítem</p>
+                                <p>Ingrese el <strong>Precio Unitario</strong> de cada material. El sistema calculará los totales.</p>
                             </div>
                         </div>
-                        <div className="border rounded-xl overflow-hidden">
-                            {selectedRfq.selectedSuppliers.map((s, idx) => {
+                        <div className="grid grid-cols-1 gap-6">
+                            {selectedRfq.selectedSuppliers.map((s) => {
                                 // Find items for this supplier to display as a hint
                                 const supplierItems = selectedRfq.items.filter(i => i.targetSupplierIds?.includes(s.id));
                                 
-                                return (
-                                    <div key={s.id} className={`p-5 bg-white ${idx !== selectedRfq.selectedSuppliers.length -1 ? 'border-b' : ''}`}>
-                                        <div className="flex flex-col md:flex-row md:items-center justify-between mb-4 gap-4">
-                                            <span className="font-bold text-slate-700 text-lg">{s.name}</span>
-                                            
-                                            <div className="flex flex-col md:flex-row gap-4">
-                                                {/* Quote Reference Input */}
-                                                <div className="flex items-center">
-                                                    <FileDigit size={16} className="text-slate-400 mr-2" />
-                                                    <input 
-                                                        type="text" 
-                                                        className="border border-slate-300 rounded-lg px-3 py-2 w-48 text-sm bg-white focus:ring-2 focus:ring-accent outline-none" 
-                                                        placeholder="Nro. Presupuesto (Ref)"
-                                                        onChange={(e) => setTempReferences({...tempReferences, [s.id]: e.target.value})}
-                                                    />
-                                                </div>
+                                // Calculate total on the fly for display
+                                const currentTotal = supplierItems.reduce((acc, item) => {
+                                    const price = parseFloat(tempUnitPrices[s.id]?.[item.materialId] || '0');
+                                    return acc + (price * item.quantity);
+                                }, 0);
 
-                                                {/* Price Input */}
-                                                <div className="flex items-center">
-                                                    <span className="mr-2 text-slate-400 font-semibold">$</span>
-                                                    <input 
-                                                        type="number" 
-                                                        className="border border-slate-300 rounded-lg px-3 py-2 w-40 text-right bg-white focus:ring-2 focus:ring-accent outline-none font-bold" 
-                                                        placeholder="0.00"
-                                                        onChange={(e) => setTempPrices({...tempPrices, [s.id]: parseFloat(e.target.value)})}
-                                                    />
-                                                </div>
+                                return (
+                                    <div key={s.id} className="border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                                        {/* Supplier Header */}
+                                        <div className="bg-slate-50 p-4 border-b border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                                            <div>
+                                                <h4 className="font-bold text-slate-800 flex items-center">
+                                                    <Truck size={18} className="mr-2 text-slate-500"/>
+                                                    {s.name}
+                                                </h4>
+                                                <span className="text-xs text-slate-500 ml-6">Cotiza {supplierItems.length} items</span>
+                                            </div>
+                                            
+                                            <div className="flex items-center">
+                                                <span className="bg-white border-y border-l border-slate-300 rounded-l-lg px-2 py-2 text-slate-400"><FileDigit size={14}/></span>
+                                                <input 
+                                                    type="text" 
+                                                    className="border border-slate-300 rounded-r-lg px-3 py-2 w-48 text-sm bg-white focus:ring-2 focus:ring-accent outline-none" 
+                                                    placeholder="Nro. Presupuesto (Ref)"
+                                                    onChange={(e) => setTempReferences({...tempReferences, [s.id]: e.target.value})}
+                                                />
                                             </div>
                                         </div>
                                         
-                                        {/* Detailed Item List */}
-                                        <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
-                                            <p className="text-xs font-bold text-slate-500 mb-2 flex items-center uppercase"><List size={12} className="mr-1"/> Detalle a Cotizar:</p>
-                                            <ul className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                                                {supplierItems.map((i, iIdx) => (
-                                                    <li key={iIdx} className="text-sm text-slate-600 flex justify-between border-b border-slate-200 border-dashed pb-1 last:border-0 last:pb-0">
-                                                        <span>{i.description}</span>
-                                                        <span className="font-mono font-semibold bg-white px-1 rounded border border-slate-200 text-xs">x{i.quantity}</span>
-                                                    </li>
-                                                ))}
-                                            </ul>
+                                        {/* Detailed Item List for this Supplier */}
+                                        <div className="p-0 bg-white">
+                                            <table className="w-full text-sm">
+                                                <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-100 text-xs uppercase">
+                                                    <tr>
+                                                        <th className="px-4 py-3 text-left">Ítem / Descripción</th>
+                                                        <th className="px-4 py-3 text-center w-24">Cant.</th>
+                                                        <th className="px-4 py-3 text-right w-40">Precio Unit.</th>
+                                                        <th className="px-4 py-3 text-right w-40">Subtotal</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {supplierItems.map((i, iIdx) => {
+                                                        const unitPrice = tempUnitPrices[s.id]?.[i.materialId] || '';
+                                                        const subtotal = (parseFloat(unitPrice || '0') * i.quantity);
+                                                        
+                                                        return (
+                                                            <tr key={iIdx} className="border-b border-slate-50 last:border-0">
+                                                                <td className="px-4 py-3 text-slate-700 font-medium">{i.description}</td>
+                                                                <td className="px-4 py-3 text-center text-slate-500 bg-slate-50 font-mono">x{i.quantity}</td>
+                                                                <td className="px-4 py-3 text-right">
+                                                                    <div className="relative">
+                                                                        <span className="absolute left-3 top-2 text-slate-400 text-xs">$</span>
+                                                                        <input 
+                                                                            type="number" 
+                                                                            className="w-full pl-6 pr-2 py-1.5 border border-slate-300 rounded text-right text-sm focus:ring-2 focus:ring-accent outline-none"
+                                                                            placeholder="0.00"
+                                                                            value={unitPrice}
+                                                                            onChange={(e) => handleUnitPriceChange(s.id, i.materialId, e.target.value)}
+                                                                        />
+                                                                    </div>
+                                                                </td>
+                                                                <td className="px-4 py-3 text-right font-bold text-slate-700">
+                                                                    ${subtotal.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    })}
+                                                </tbody>
+                                                <tfoot className="bg-slate-50 border-t border-slate-200">
+                                                    <tr>
+                                                        <td colSpan={3} className="px-4 py-3 text-right font-bold text-slate-600 uppercase text-xs">Total Presupuesto:</td>
+                                                        <td className="px-4 py-3 text-right font-bold text-lg text-slate-800">
+                                                            ${currentTotal.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                                                        </td>
+                                                    </tr>
+                                                </tfoot>
+                                            </table>
                                         </div>
                                     </div>
                                 );
                             })}
                         </div>
-                        <div className="flex justify-end mt-4">
-                            <button onClick={() => handleLoadPrices(selectedRfq)} className="bg-slate-900 text-white px-6 py-2.5 rounded-lg hover:bg-slate-800 shadow-md transition-all font-medium">
-                                Guardar Cotizaciones
+                        <div className="flex justify-end mt-6">
+                            <button onClick={() => handleLoadPrices(selectedRfq)} className="bg-slate-900 text-white px-6 py-2.5 rounded-lg hover:bg-slate-800 shadow-md transition-all font-medium flex items-center">
+                                <Save size={18} className="mr-2"/> Guardar Cotizaciones
                             </button>
                         </div>
                     </div>
                 )}
 
+                {/* --- 2. QUOTING MODE (QUOTED) - THE BUBBLES --- */}
                 {selectedRfq.status === OrderStatus.QUOTED && (
                     <div className="space-y-6 animate-in fade-in">
-                        <h4 className="font-bold text-slate-700">Comparativa de Precios</h4>
+                        <div className="flex justify-between items-end mb-2">
+                            <h4 className="font-bold text-slate-700">Comparativa de Precios</h4>
+                            <p className="text-xs text-slate-500">Seleccione la mejor opción para adjudicar.</p>
+                        </div>
+                        
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                             {selectedRfq.quotes.map(q => {
-                                // Logic to determine if this quote is the cheapest considering ONLY competitors quoting the SAME items
-                                // 1. Get the items IDs for this specific quote
+                                // Comparator Logic
                                 const myItemsIds = selectedRfq.items
                                     .filter(i => i.targetSupplierIds?.includes(q.supplierId))
                                     .map(i => i.materialId)
                                     .sort();
-                                
                                 const mySignature = myItemsIds.join('|');
-
-                                // 2. Find other quotes that are quoting the EXACT same items (Signature match)
                                 const comparableQuotes = selectedRfq.quotes.filter(otherQ => {
                                     const otherItemsIds = selectedRfq.items
                                         .filter(i => i.targetSupplierIds?.includes(otherQ.supplierId))
@@ -467,14 +580,9 @@ const RFQManagement = ({ rfqs, onUpdate }: { rfqs: RFQ[], onUpdate: (rfq: RFQ) =
                                         .sort();
                                     return otherItemsIds.join('|') === mySignature;
                                 });
-
-                                // 3. Is it cheapest in its group?
-                                // Only show "Best Price" if there is actually a competition (more than 1 supplier for this exact set of items)
                                 const isComparable = comparableQuotes.length > 1;
                                 const minPriceInGroup = Math.min(...comparableQuotes.map(cq => cq.price));
                                 const isCheapest = isComparable && q.price === minPriceInGroup;
-
-                                // Get items for this quote for display
                                 const quoteItems = selectedRfq.items.filter(i => i.targetSupplierIds?.includes(q.supplierId));
                                 
                                 return (
@@ -493,14 +601,20 @@ const RFQManagement = ({ rfqs, onUpdate }: { rfqs: RFQ[], onUpdate: (rfq: RFQ) =
                                             <div className="text-3xl font-bold text-slate-800 mb-4 tracking-tight">${q.price.toLocaleString()}</div>
                                             
                                             <div className="bg-slate-50 rounded-lg p-3 text-xs text-slate-600 mb-2 border border-slate-100 max-h-40 overflow-y-auto custom-scrollbar">
-                                                <p className="font-bold mb-1 uppercase text-slate-400 text-[10px]">Items Cotizados:</p>
+                                                <p className="font-bold mb-1 uppercase text-slate-400 text-[10px]">Detalle Cotizado:</p>
                                                 <ul className="space-y-1">
-                                                    {quoteItems.map((qi, idx) => (
-                                                        <li key={idx} className="flex justify-between">
-                                                            <span className="truncate pr-2" title={qi.description}>{qi.description}</span>
-                                                            <span className="font-mono font-bold">x{qi.quantity}</span>
-                                                        </li>
-                                                    ))}
+                                                    {quoteItems.map((qi, idx) => {
+                                                        const detail = q.items?.find(i => i.materialId === qi.materialId);
+                                                        return (
+                                                            <li key={idx} className="flex justify-between border-b border-slate-200 border-dashed pb-1 last:border-0 last:pb-0">
+                                                                <span className="truncate pr-2 w-1/2" title={qi.description}>{qi.description}</span>
+                                                                <div className="text-right">
+                                                                    <span className="font-mono text-slate-500 mr-2">x{qi.quantity}</span>
+                                                                    <span className="font-bold text-slate-800">${detail?.unitPrice.toLocaleString() || '-'}</span>
+                                                                </div>
+                                                            </li>
+                                                        );
+                                                    })}
                                                 </ul>
                                             </div>
                                         </div>
@@ -521,10 +635,42 @@ const RFQManagement = ({ rfqs, onUpdate }: { rfqs: RFQ[], onUpdate: (rfq: RFQ) =
                                 );
                             })}
                         </div>
-                        
-                        <div className="bg-gray-50 p-3 rounded-lg text-xs text-gray-500 flex items-center border border-gray-100">
-                             <ShieldCheck size={14} className="mr-2"/>
-                             Al adjudicar, el sistema determinará automáticamente el aprobador según el esquema de liberación vigente.
+                    </div>
+                )}
+
+                {/* --- 3. ADJUDICATED VIEW (PENDING APPROVAL) - BUBBLES GONE --- */}
+                {selectedRfq.status === OrderStatus.PENDING_APPROVAL && (
+                    <div className="animate-in zoom-in-95 duration-300">
+                        <div className="bg-green-50 border border-green-200 rounded-xl p-8 text-center max-w-2xl mx-auto">
+                            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <CheckCircle size={32} className="text-green-600" />
+                            </div>
+                            <h3 className="text-2xl font-bold text-slate-800 mb-2">¡Adjudicación Registrada!</h3>
+                            <p className="text-slate-600 mb-6">
+                                Se ha seleccionado al proveedor <span className="font-bold text-slate-900">{selectedRfq.quotes.find(q => q.isSelected)?.supplierName}</span> por un total de <span className="font-bold text-slate-900">${selectedRfq.quotes.find(q => q.isSelected)?.price.toLocaleString()}</span>.
+                            </p>
+                            
+                            <div className="bg-white p-4 rounded-lg border border-green-100 text-left mb-6 shadow-sm">
+                                <h5 className="text-sm font-bold text-slate-700 mb-2 uppercase flex items-center"><Layers size={14} className="mr-2"/> Estado Actual</h5>
+                                <div className="flex items-center text-sm text-orange-600 font-medium">
+                                    <Users size={16} className="mr-2"/> Pendiente de Aprobación (Esquema de Liberación)
+                                </div>
+                            </div>
+
+                            <div className="flex justify-center space-x-4">
+                                <button 
+                                    onClick={() => handleRevertAdjudication(selectedRfq)}
+                                    className="px-4 py-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors flex items-center text-sm font-medium"
+                                >
+                                    <Undo2 size={16} className="mr-2"/> Hubo un error, deshacer adjudicación
+                                </button>
+                                <button 
+                                    onClick={() => setSelectedRfq(null)}
+                                    className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 shadow-md font-bold transition-all"
+                                >
+                                    Volver al Listado
+                                </button>
+                            </div>
                         </div>
                     </div>
                 )}
@@ -549,19 +695,13 @@ const RFQManagement = ({ rfqs, onUpdate }: { rfqs: RFQ[], onUpdate: (rfq: RFQ) =
                         </div>
                         <p className="text-sm text-slate-500">{rfq.items.length} items solicitados • {rfq.selectedSuppliers.length} proveedores invitados</p>
                     </div>
-                    {rfq.status !== OrderStatus.PENDING_APPROVAL && (
-                        <button 
-                            onClick={() => setSelectedRfq(rfq)}
-                            className="bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200 px-4 py-2 rounded-lg text-sm font-medium flex items-center transition-colors"
-                        >
-                            Gestionar <ArrowRight size={16} className="ml-2"/>
-                        </button>
-                    )}
-                    {rfq.status === OrderStatus.PENDING_APPROVAL && (
-                        <span className="text-sm text-orange-500 font-medium flex items-center bg-orange-50 px-3 py-1 rounded-lg border border-orange-100">
-                            <Users size={16} className="mr-2"/> Esperando Aprobación
-                        </span>
-                    )}
+                    {/* Allow managing even if pending approval to show the result screen */}
+                    <button 
+                        onClick={() => setSelectedRfq(rfq)}
+                        className="bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200 px-4 py-2 rounded-lg text-sm font-medium flex items-center transition-colors"
+                    >
+                        {rfq.status === OrderStatus.PENDING_APPROVAL ? 'Ver Estado' : 'Gestionar'} <ArrowRight size={16} className="ml-2"/>
+                    </button>
                 </div>
             ))}
             {rfqs.length === 0 && (
@@ -574,7 +714,7 @@ const RFQManagement = ({ rfqs, onUpdate }: { rfqs: RFQ[], onUpdate: (rfq: RFQ) =
 };
 
 // 3. Approval Tray
-const ApprovalTray = ({ rfqs, onApprove }: { rfqs: RFQ[], onApprove: (rfq: RFQ) => void }) => {
+const ApprovalTray = ({ rfqs, onApprove, onRevert }: { rfqs: RFQ[], onApprove: (rfq: RFQ) => void, onRevert: (rfq: RFQ) => void }) => {
     const { users } = useMasterData();
 
     return (
@@ -609,17 +749,32 @@ const ApprovalTray = ({ rfqs, onApprove }: { rfqs: RFQ[], onApprove: (rfq: RFQ) 
                         <div className="bg-slate-50 p-4 rounded-lg text-sm mb-6 border border-slate-100">
                              <p className="font-bold mb-2 text-slate-700 text-xs uppercase">Items a comprar</p>
                              <ul className="space-y-1">
-                                {rfq.items.map((it, i) => (
-                                    <li key={i} className="flex justify-between text-slate-600 border-b border-slate-200 pb-1 last:border-0 last:pb-0">
-                                        <span>{it.description}</span>
-                                        <span className="font-mono font-bold">x{it.quantity}</span>
-                                    </li>
-                                ))}
+                                {rfq.items.map((it, i) => {
+                                    // Find unit price in winning quote
+                                    const quoteDetail = winner?.items?.find(qi => qi.materialId === it.materialId);
+                                    
+                                    return (
+                                        <li key={i} className="flex justify-between text-slate-600 border-b border-slate-200 pb-1 last:border-0 last:pb-0">
+                                            <span>{it.description}</span>
+                                            <div>
+                                                <span className="font-mono font-bold mr-3">x{it.quantity}</span>
+                                                <span className="text-xs text-slate-500">
+                                                    (Unit. ${quoteDetail?.unitPrice.toLocaleString()})
+                                                </span>
+                                            </div>
+                                        </li>
+                                    );
+                                })}
                              </ul>
                         </div>
 
                         <div className="flex justify-end space-x-3 pt-2 border-t border-slate-100">
-                            <button className="px-5 py-2.5 border border-red-200 text-red-600 rounded-lg hover:bg-red-50 text-sm font-bold transition-colors">Rechazar</button>
+                            <button 
+                                onClick={() => onRevert(rfq)}
+                                className="px-5 py-2.5 border border-slate-300 text-slate-600 rounded-lg hover:bg-slate-50 text-sm font-bold transition-colors flex items-center"
+                            >
+                                <Undo2 size={16} className="mr-2"/> Corregir / Reversar Adjudicación
+                            </button>
                             <button 
                                 onClick={() => onApprove(rfq)}
                                 className="px-5 py-2.5 bg-success text-white rounded-lg hover:bg-green-600 shadow-md text-sm font-bold flex items-center transition-transform active:scale-95"
@@ -654,6 +809,7 @@ const PurchaseOrdersList = ({ rfqs }: { rfqs: RFQ[] }) => {
                         <th className="p-4 font-semibold text-slate-600">Proveedor Adjudicado</th>
                         <th className="p-4 font-semibold text-slate-600 text-right">Total</th>
                         <th className="p-4 font-semibold text-slate-600 text-center">Estado</th>
+                        <th className="p-4 font-semibold text-slate-600 text-center">Acciones</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -668,11 +824,14 @@ const PurchaseOrdersList = ({ rfqs }: { rfqs: RFQ[] }) => {
                                 <td className="p-4 text-center">
                                     <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold border border-green-200">Enviada</span>
                                 </td>
+                                <td className="p-4 text-center">
+                                    <button className="text-slate-400 hover:text-slate-700" title="Ver PDF"><Printer size={16}/></button>
+                                </td>
                             </tr>
                         );
                     })}
                     {pos.length === 0 && (
-                        <tr><td colSpan={5} className="p-12 text-center text-slate-400">Sin órdenes de compra generadas</td></tr>
+                        <tr><td colSpan={6} className="p-12 text-center text-slate-400">Sin órdenes de compra generadas</td></tr>
                     )}
                 </tbody>
             </table>
@@ -789,92 +948,6 @@ const ApprovalSettings = () => {
     );
 };
 
-// 6. Purchasing Strategies (NEW - Commented Out)
-/*
-const PurchasingStrategies = () => {
-    const [strategies, setStrategies] = useState([
-        { id: 1, name: 'Compra Corporativa IT', type: 'Categoría', detail: 'Consolidación de Hardware', status: 'Activa', targetSavings: '15%' },
-        { id: 2, name: 'Contrato Marco Rodamientos', type: 'Proveedor', detail: 'Acuerdo Anual con SKF', status: 'En Revisión', targetSavings: '8%' }
-    ]);
-    const [showForm, setShowForm] = useState(false);
-    const [newStrategy, setNewStrategy] = useState({ name: '', type: 'Categoría', detail: '' });
-
-    const handleAdd = () => {
-        if(!newStrategy.name) return;
-        setStrategies([...strategies, { ...newStrategy, id: Date.now(), status: 'Activa', targetSavings: '0%' }]);
-        setNewStrategy({ name: '', type: 'Categoría', detail: '' });
-        setShowForm(false);
-    };
-
-    return (
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-            <div className="flex justify-between items-center mb-6">
-                <div>
-                    <h3 className="text-xl font-bold text-slate-800 flex items-center">
-                        <Lightbulb className="mr-2 text-yellow-500" /> Estrategias de Compra
-                    </h3>
-                    <p className="text-sm text-slate-500">Definición de lineamientos estratégicos para la adquisición de bienes.</p>
-                </div>
-                <button onClick={() => setShowForm(!showForm)} className="bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-800">
-                    {showForm ? 'Cancelar' : 'Nueva Estrategia'}
-                </button>
-            </div>
-
-            {showForm && (
-                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 mb-6 animate-in slide-in-from-top-2">
-                    <h4 className="font-bold text-sm text-slate-700 mb-3">Definir Nueva Estrategia</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                        <input 
-                            placeholder="Nombre de la Estrategia" 
-                            className="px-3 py-2 border rounded-lg"
-                            value={newStrategy.name}
-                            onChange={e => setNewStrategy({...newStrategy, name: e.target.value})}
-                        />
-                        <select 
-                            className="px-3 py-2 border rounded-lg bg-white"
-                            value={newStrategy.type}
-                            onChange={e => setNewStrategy({...newStrategy, type: e.target.value})}
-                        >
-                            <option>Categoría</option>
-                            <option>Proveedor</option>
-                            <option>Global</option>
-                        </select>
-                        <input 
-                            placeholder="Detalle / Alcance" 
-                            className="px-3 py-2 border rounded-lg"
-                            value={newStrategy.detail}
-                            onChange={e => setNewStrategy({...newStrategy, detail: e.target.value})}
-                        />
-                    </div>
-                    <div className="flex justify-end">
-                        <button onClick={handleAdd} className="bg-accent text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm">Guardar Estrategia</button>
-                    </div>
-                </div>
-            )}
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {strategies.map(s => (
-                    <div key={s.id} className="border border-slate-200 rounded-xl p-5 hover:shadow-md transition-shadow bg-white relative overflow-hidden">
-                        <div className={`absolute top-0 right-0 w-24 h-24 -mr-12 -mt-12 rounded-full opacity-10 ${s.status === 'Activa' ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
-                        <div className="flex justify-between items-start mb-2 relative z-10">
-                            <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500 border px-1.5 rounded">{s.type}</span>
-                            <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${s.status === 'Activa' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>{s.status}</span>
-                        </div>
-                        <h4 className="font-bold text-slate-800 text-lg mb-1 relative z-10">{s.name}</h4>
-                        <p className="text-sm text-slate-500 mb-4">{s.detail}</p>
-                        
-                        <div className="flex items-center text-xs font-semibold text-slate-600 bg-slate-50 p-2 rounded relative z-10">
-                            <Target size={14} className="mr-2 text-accent"/>
-                            Objetivo Ahorro: {s.targetSavings}
-                        </div>
-                    </div>
-                ))}
-            </div>
-        </div>
-    );
-};
-*/
-
 // --- Modules Wrappers ---
 
 const ProcurementModule = () => {
@@ -899,9 +972,59 @@ const ProcurementModule = () => {
         setRfqs(rfqs.map(r => r.id === updatedRfq.id ? updatedRfq : r));
     };
 
+    const handleRevertAdjudication = (rfq: RFQ) => {
+        const revertedRfq: RFQ = {
+            ...rfq,
+            status: OrderStatus.QUOTED,
+            winnerSupplierId: undefined,
+            requiredApproverId: undefined,
+            quotes: rfq.quotes.map(q => ({...q, isSelected: false}))
+        };
+        handleUpdateRFQ(revertedRfq);
+        setActiveTab('MANAGE_RFQ'); // Go back to management to re-quote/re-adjudicate
+    };
+
     const handleApproveRFQ = (rfq: RFQ) => {
         const winner = rfq.quotes.find(q => q.isSelected);
-        alert(`✅ Aprobación Exitosa.\n\n1. Orden de Compra Generada: ${rfq.number.replace('P-OFE', 'OC')}\n2. Email enviado a: ${winner?.supplierName}`);
+        if(!winner) return;
+        
+        const poNumber = rfq.number.replace('P-OFE', 'OC');
+
+        // Generate PDF
+        const doc = new jsPDF();
+        doc.setFontSize(20);
+        doc.text(`ORDEN DE COMPRA: ${poNumber}`, 15, 20);
+        doc.setFontSize(12);
+        doc.text(`Fecha: ${new Date().toLocaleDateString()}`, 15, 30);
+        doc.text(`Proveedor: ${winner.supplierName}`, 15, 40);
+        doc.text(`Referencia Cotización: ${winner.quoteReference || 'N/A'}`, 15, 50);
+
+        doc.setFontSize(14);
+        doc.text(`Detalle de Items`, 15, 70);
+        
+        let yPos = 80;
+        doc.setFontSize(10);
+        // Filter items for this winner (simple logic assumes winner takes all associated items or just list all if not strict)
+        // For strict logic, we would filter rfq.items where targetSupplierIds includes winner.supplierId
+        const winnerItems = rfq.items.filter(i => i.targetSupplierIds?.includes(winner.supplierId));
+
+        winnerItems.forEach((item, index) => {
+             // Retrieve unit price from the detailed quote info
+             const quoteItem = winner.items?.find(qi => qi.materialId === item.materialId);
+             const unitPrice = quoteItem ? quoteItem.unitPrice : 0;
+             const subtotal = unitPrice * item.quantity;
+             
+             doc.text(`${item.description}`, 20, yPos);
+             doc.text(`Cant: ${item.quantity}  |  Unit: $${unitPrice}  |  Sub: $${subtotal}`, 20, yPos + 5);
+             yPos += 12;
+        });
+
+        doc.setFontSize(12);
+        doc.text(`TOTAL: $${winner.price.toLocaleString()}`, 15, yPos + 10);
+        
+        doc.save(`${poNumber}.pdf`);
+
+        alert(`✅ Aprobación Exitosa.\n\n1. Orden de Compra Generada: ${poNumber}\n2. Email enviado a: ${winner?.supplierName} (PDF Adjunto)`);
         
         const approvedRfq = { ...rfq, status: OrderStatus.CONVERTED_TO_PO };
         setRfqs(rfqs.map(r => r.id === rfq.id ? approvedRfq : r));
@@ -946,14 +1069,6 @@ const ProcurementModule = () => {
                     <span className="font-semibold text-slate-700">Órdenes de Compra</span>
                  </button>
 
-                {/* Strategy Button Commented Out
-                 <button onClick={() => setActiveTab('STRATEGIES')} className={`p-4 rounded-xl border flex flex-col items-center justify-center transition-all ${activeTab === 'STRATEGIES' ? 'bg-white border-yellow-500 shadow-md ring-1 ring-yellow-500' : 'bg-white border-slate-200 hover:bg-slate-50'}`}>
-                    <Lightbulb size={24} className={`mb-2 ${activeTab === 'STRATEGIES' ? 'text-yellow-500' : 'text-slate-400'}`} />
-                    <span className="font-semibold text-slate-700">Estrategias</span>
-                    <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded mt-1">Admin</span>
-                 </button>
-                 */}
-
                  {currentUserRole === 'ADMIN' && (
                     <button onClick={() => setActiveTab('SETTINGS')} className={`p-4 rounded-xl border flex flex-col items-center justify-center transition-all ${activeTab === 'SETTINGS' ? 'bg-white border-slate-800 shadow-md ring-1 ring-slate-800' : 'bg-white border-slate-200 hover:bg-slate-50'}`}>
                         <Settings size={24} className={`mb-2 ${activeTab === 'SETTINGS' ? 'text-slate-800' : 'text-slate-400'}`} />
@@ -964,7 +1079,7 @@ const ProcurementModule = () => {
 
              <div className="min-h-[400px]">
                 {activeTab === 'MANAGE_RFQ' && <RFQManagement rfqs={rfqs} onUpdate={handleUpdateRFQ} />}
-                {activeTab === 'APPROVAL' && <ApprovalTray rfqs={rfqs} onApprove={handleApproveRFQ} />}
+                {activeTab === 'APPROVAL' && <ApprovalTray rfqs={rfqs} onApprove={handleApproveRFQ} onRevert={handleRevertAdjudication} />}
                 {activeTab === 'PO_LIST' && <PurchaseOrdersList rfqs={rfqs} />}
                 {/* activeTab === 'STRATEGIES' && <PurchasingStrategies /> */}
                 {activeTab === 'SETTINGS' && currentUserRole === 'ADMIN' && <ApprovalSettings />}

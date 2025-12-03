@@ -43,10 +43,16 @@ export interface RFQItem {
   targetSupplierIds?: string[]; // New: Suppliers selected specifically for this item
 }
 
+export interface QuoteItemDetail {
+  materialId: string;
+  unitPrice: number;
+}
+
 export interface SupplierQuote {
   supplierId: string;
   supplierName: string;
-  price: number; // Total price for the RFQ or per item logic (simplified to total for now)
+  price: number; // Total sum
+  items?: QuoteItemDetail[]; // New field for detailed unit prices
   quoteReference?: string; // New: Supplier's budget/quote number
   deliveryDate?: string;
   isSelected: boolean; // Is this the winning quote?
