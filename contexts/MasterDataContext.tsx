@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, ReactNode } from 'react';
-import { ApprovalRule, Material } from '../types';
+import { ApprovalRule, Material, Asset, AssetType, MaintenanceRoutine } from '../types';
 
 // Define types for our lists
 interface Supplier {
@@ -18,8 +18,10 @@ interface MasterDataContextType {
   vehicleTypes: string[];
   warehouses: string[]; 
   suppliers: Supplier[];
-  materials: Material[]; // Added Global Materials State
-  users: {id: string, name: string, role: string}[]; // For Approval Flow
+  materials: Material[]; 
+  assets: Asset[]; 
+  routines: MaintenanceRoutine[]; // Added PM Routines
+  users: {id: string, name: string, role: string}[]; 
   approvalRules: ApprovalRule[];
 
   addRegion: (val: string) => void;
@@ -27,7 +29,9 @@ interface MasterDataContextType {
   addMachineType: (val: string) => void;
   addVehicleType: (val: string) => void;
   addWarehouse: (val: string) => void;
-  addMaterial: (val: Material) => void; // Added function
+  addMaterial: (val: Material) => void; 
+  addAsset: (val: Asset) => void; 
+  addRoutine: (val: MaintenanceRoutine) => void; // Added function
   addApprovalRule: (rule: ApprovalRule) => void;
   deleteApprovalRule: (id: string) => void;
 }
@@ -112,6 +116,22 @@ export const MasterDataProvider = ({ children }: { children?: ReactNode }) => {
     }
   ]);
 
+  // Mock Assets
+  const [assets, setAssets] = useState<Asset[]>([
+      { id: 'MAQ-001', code: 'TR-01', name: 'Torno CNC Haas', type: AssetType.MACHINE, brand: 'Haas', model: 'ST-20', serialNumber: '123456', location: 'Nave Industrial A' },
+      { id: 'MAQ-002', code: 'PRE-05', name: 'Prensa Hidráulica 50T', type: AssetType.MACHINE, brand: 'Metalurg', model: 'PH-50', serialNumber: '987654', location: 'Nave Industrial A' },
+      { id: 'VEH-001', code: 'MOV-01', name: 'Autoelevador Toyota', type: AssetType.VEHICLE, brand: 'Toyota', model: '8FD', serialNumber: 'V-111', plate: 'AA123BB', mileage: 15000 },
+      { id: 'VEH-002', code: 'CAM-02', name: 'Camioneta Hilux', type: AssetType.VEHICLE, brand: 'Toyota', model: 'Hilux', serialNumber: 'V-222', plate: 'AD456CC', mileage: 45000 }
+  ]);
+
+  // Mock Routines
+  const [routines, setRoutines] = useState<MaintenanceRoutine[]>([
+      { id: 'RT-001', assetId: 'MAQ-001', name: 'Lubricación General y Limpieza', frequencyDays: 30, discipline: 'Mecánica', lastExecutionDate: '2023-09-15', estimatedHours: 2 },
+      { id: 'RT-002', assetId: 'MAQ-001', name: 'Revisión Armario Eléctrico', frequencyDays: 90, discipline: 'Eléctrica', lastExecutionDate: '2023-08-01', estimatedHours: 4 },
+      { id: 'RT-003', assetId: 'VEH-001', name: 'Service 500hs (Aceite y Filtros)', frequencyDays: 120, discipline: 'Mecánica', lastExecutionDate: '2023-06-20', estimatedHours: 6 },
+      { id: 'RT-004', assetId: 'MAQ-002', name: 'Verificación Sellos Hidráulicos', frequencyDays: 60, discipline: 'Hidráulica', lastExecutionDate: '2023-09-01', estimatedHours: 3 },
+  ]);
+
   // Mock Users for Approval Logic
   const [users] = useState([
     { id: 'USR-001', name: 'Juan Perez (Comprador)', role: 'USER' },
@@ -132,6 +152,8 @@ export const MasterDataProvider = ({ children }: { children?: ReactNode }) => {
   const addWarehouse = (val: string) => setWarehouses(prev => [...prev, val]);
   
   const addMaterial = (val: Material) => setMaterials(prev => [...prev, val]);
+  const addAsset = (val: Asset) => setAssets(prev => [...prev, val]);
+  const addRoutine = (val: MaintenanceRoutine) => setRoutines(prev => [...prev, val]);
 
   const addApprovalRule = (rule: ApprovalRule) => setApprovalRules(prev => [...prev, rule]);
   const deleteApprovalRule = (id: string) => setApprovalRules(prev => prev.filter(r => r.id !== id));
@@ -145,6 +167,8 @@ export const MasterDataProvider = ({ children }: { children?: ReactNode }) => {
       warehouses,
       suppliers,
       materials,
+      assets,
+      routines,
       users,
       approvalRules,
       addRegion,
@@ -153,6 +177,8 @@ export const MasterDataProvider = ({ children }: { children?: ReactNode }) => {
       addVehicleType,
       addWarehouse,
       addMaterial,
+      addAsset,
+      addRoutine,
       addApprovalRule,
       deleteApprovalRule
     }}>

@@ -140,6 +140,16 @@ export enum MaintenanceType {
   PREVENTIVE = 'Preventivo'
 }
 
+export interface MaintenanceRoutine {
+    id: string;
+    assetId: string;
+    name: string; // e.g. "Cambio de Filtros 500h"
+    frequencyDays: number; // e.g. 90 days
+    discipline: 'Mecánica' | 'Eléctrica' | 'Hidráulica' | 'Neumática' | 'General';
+    lastExecutionDate: string; // ISO Date
+    estimatedHours: number;
+}
+
 export interface MaintenanceOrder {
   id: string;
   number: string;
@@ -152,6 +162,8 @@ export interface MaintenanceOrder {
   plannedDate?: string;
   assignedMaterials: { materialId: string; quantity: number }[];
   technician?: string;
+  origin?: 'MANUAL' | 'ROUTINE'; // To distinguish manual requests from PM planner
+  routineId?: string; // Link back to the PM Routine if applicable
 }
 
 // Warehouse
