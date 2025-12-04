@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { jsPDF } from 'jspdf';
 import { 
@@ -10,7 +11,7 @@ import {
   AlertTriangle,
   MoreVertical,
   Printer,
-  Wrench,
+  Wrench, 
   ClipboardCheck,
   FileWarning,
   ArrowRight,
@@ -32,7 +33,10 @@ import {
   LayoutDashboard,
   ClipboardList,
   Activity,
-  User
+  User,
+  Trash2,
+  History,
+  Archive
 } from 'lucide-react';
 import { useMasterData } from '../contexts/MasterDataContext';
 import { MaintenanceStatus, MaintenanceOrder, MaintenanceType, AssetType } from '../types';
@@ -43,7 +47,7 @@ const INITIAL_ORDERS: MaintenanceOrder[] = [
   { id: '1', number: 'OT-2023-001', assetId: 'MAQ-001', description: 'Ruido en rulemanes', type: MaintenanceType.CORRECTIVE, status: MaintenanceStatus.PENDING, priority: 'High', reportedDate: '2023-10-25', assignedMaterials: [], origin: 'MANUAL' },
   { id: '2', number: 'OT-2023-002', assetId: 'AA-123-BB', description: 'Cambio de aceite y filtros', type: MaintenanceType.PREVENTIVE, status: MaintenanceStatus.PLANNED, priority: 'Medium', reportedDate: '2023-10-26', plannedDate: TODAY, assignedMaterials: [{materialId: 'MAT-OIL', quantity: 2}], origin: 'ROUTINE' },
   { id: '3', number: 'OT-2023-003', assetId: 'MAQ-004', description: 'Ajuste de bancada', type: MaintenanceType.CORRECTIVE, status: MaintenanceStatus.IN_PROGRESS, priority: 'Low', reportedDate: '2023-10-27', assignedMaterials: [], origin: 'MANUAL' },
-  { id: '4', number: 'OT-2023-004', assetId: 'MAQ-002', description: 'Revisión mensual eléctrica', type: MaintenanceType.PREVENTIVE, status: MaintenanceStatus.CLOSED, priority: 'Medium', reportedDate: '2023-10-20', assignedMaterials: [], origin: 'ROUTINE' },
+  { id: '4', number: 'OT-2023-004', assetId: 'MAQ-002', description: 'Revisión mensual eléctrica', type: MaintenanceType.PREVENTIVE, status: MaintenanceStatus.CLOSED, priority: 'Medium', reportedDate: '2023-10-20', closedDate: '2023-10-21', assignedMaterials: [], origin: 'ROUTINE' },
 ];
 
 // --- Sub Components ---
@@ -231,7 +235,8 @@ const PMPlanner = ({ onGenerateOrders, onCancel }: { onGenerateOrders: (newOrder
 };
 
 const MaintenanceManagement = ({ orders, onUpdateOrder }: { orders: MaintenanceOrder[], onUpdateOrder: (order: MaintenanceOrder) => void }) => {
-  const [viewMode, setViewMode] = useState<'KANBAN' | 'GRID'>('KANBAN');
+  const { materials } = useMasterData();
+  const [viewMode, setViewMode] = useState<'KANBAN' | 'GRID' | 'HISTORY'>('KANBAN');
   const [showClosedHistory, setShowClosedHistory] = useState(false);
   const [filterType, setFilterType] = useState<'ALL' | 'CORRECTIVE' | 'PREVENTIVE'>('ALL');
   
@@ -241,6 +246,11 @@ const MaintenanceManagement = ({ orders, onUpdateOrder }: { orders: MaintenanceO
 
   // Details Modal State
   const [selectedOrderDetails, setSelectedOrderDetails] = useState<MaintenanceOrder | null>(null);
+  
+  // Material Add State
+  const [isAddingMaterial, setIsAddingMaterial] = useState(false);
+  const [selectedMatId, setSelectedMatId] = useState('');
+  const [qtyMat, setQtyMat] = useState(1);
 
   // Weekly Grid State (Starts on Monday)
   const [weekStartDate, setWeekStartDate] = useState(() => {
@@ -253,6 +263,7 @@ const MaintenanceManagement = ({ orders, onUpdateOrder }: { orders: MaintenanceO
 
   // KPI Calculations
   const activeOrders = orders.filter(o => o.status !== MaintenanceStatus.CLOSED);
+  const closedOrders = orders.filter(o => o.status === MaintenanceStatus.CLOSED);
   const correctiveCount = activeOrders.filter(o => o.type === MaintenanceType.CORRECTIVE).length;
   const preventiveCount = activeOrders.filter(o => o.type === MaintenanceType.PREVENTIVE).length;
   const totalActive = activeOrders.length;
@@ -266,10 +277,140 @@ const MaintenanceManagement = ({ orders, onUpdateOrder }: { orders: MaintenanceO
 
   const generatePDF = (order: MaintenanceOrder) => {
     const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 14;
+
+    // Header Background
+    doc.setFillColor(30, 41, 59); // Slate 800
+    doc.rect(0, 0, pageWidth, 30, 'F');
+
+    // Header Text
+    doc.setTextColor(255, 255, 255);
     doc.setFontSize(20);
-    doc.text(`Orden de Mantenimiento: ${order.number}`, 14, 22);
+    doc.setFont('helvetica', 'bold');
+    doc.text('ORDEN DE MANTENIMIENTO', margin, 18);
+    
     doc.setFontSize(10);
-    doc.text(JSON.stringify(order, null, 2), 14, 40);
+    doc.setFont('helvetica', 'normal');
+    doc.text('ArgERP System v1.0', pageWidth - margin - 30, 18);
+
+    // Order Number Box
+    doc.setDrawColor(200, 200, 200);
+    doc.setFillColor(255, 255, 255);
+    doc.setTextColor(0, 0, 0);
+
+    // Top Info Section
+    const topY = 40;
+    
+    // Left Column
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`Orden #: ${order.number}`, margin, topY);
+    
+    // Removed Status display as requested
+    
+    // Separator
+    doc.setDrawColor(230, 230, 230);
+    doc.line(margin, topY + 5, pageWidth - margin, topY + 5);
+
+    // Details Grid
+    const detailsY = topY + 15;
+    const col2X = 110;
+    
+    doc.setTextColor(0, 0, 0);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Activo / Equipo:', margin, detailsY);
+    doc.setFont('helvetica', 'normal');
+    doc.text(order.assetId, margin, detailsY + 6);
+
+    doc.setFont('helvetica', 'bold');
+    doc.text('Tipo de Mantenimiento:', margin, detailsY + 16);
+    doc.setFont('helvetica', 'normal');
+    doc.text(order.type, margin, detailsY + 22);
+
+    doc.setFont('helvetica', 'bold');
+    doc.text('Prioridad:', margin, detailsY + 32);
+    doc.setFont('helvetica', 'normal');
+    doc.text(order.priority, margin, detailsY + 38);
+
+    // Column 2
+    doc.setFont('helvetica', 'bold');
+    doc.text('Fecha Reporte:', col2X, detailsY);
+    doc.setFont('helvetica', 'normal');
+    doc.text(order.reportedDate, col2X, detailsY + 6);
+
+    doc.setFont('helvetica', 'bold');
+    doc.text('Fecha Planificada:', col2X, detailsY + 16);
+    doc.setFont('helvetica', 'normal');
+    doc.text(order.plannedDate || 'N/A', col2X, detailsY + 22);
+
+    doc.setFont('helvetica', 'bold');
+    doc.text('Técnico Asignado:', col2X, detailsY + 32);
+    doc.setFont('helvetica', 'normal');
+    doc.text(order.technician || 'Sin Asignar', col2X, detailsY + 38);
+
+    // Description Section
+    const descY = detailsY + 50;
+    doc.setFillColor(245, 247, 250);
+    doc.roundedRect(margin, descY, pageWidth - (margin * 2), 35, 2, 2, 'F');
+    
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(51, 65, 85);
+    doc.text('Descripción del Trabajo:', margin + 4, descY + 8);
+    
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(0, 0, 0);
+    const splitDesc = doc.splitTextToSize(order.description, pageWidth - (margin * 2) - 8);
+    doc.text(splitDesc, margin + 4, descY + 16);
+
+    // Materials Table
+    const matY = descY + 45;
+    doc.setFont('helvetica', 'bold');
+    doc.text('Materiales y Repuestos:', margin, matY);
+
+    // Table Header
+    const tableHeadY = matY + 5;
+    doc.setFillColor(226, 232, 240);
+    doc.rect(margin, tableHeadY, pageWidth - (margin * 2), 8, 'F');
+    doc.setFontSize(9);
+    doc.text('ID Material', margin + 2, tableHeadY + 5);
+    doc.text('Descripción', margin + 50, tableHeadY + 5);
+    doc.text('Cantidad', pageWidth - margin - 20, tableHeadY + 5, { align: 'right' });
+
+    // Table Rows
+    let currentRowY = tableHeadY + 14;
+    if (order.assignedMaterials && order.assignedMaterials.length > 0) {
+        order.assignedMaterials.forEach(mat => {
+             // Mock lookup for description since we have ID only in order type context here strictly
+             // Real implementation would look up in master data map passed or use ID.
+             doc.setFont('helvetica', 'normal');
+             doc.text(mat.materialId, margin + 2, currentRowY);
+             doc.text('Material / Repuesto', margin + 50, currentRowY);
+             doc.text(mat.quantity.toString(), pageWidth - margin - 20, currentRowY, { align: 'right' });
+             doc.setDrawColor(230, 230, 230);
+             doc.line(margin, currentRowY + 2, pageWidth - margin, currentRowY + 2);
+             currentRowY += 8;
+        });
+    } else {
+        doc.setFont('helvetica', 'italic');
+        doc.setTextColor(150, 150, 150);
+        doc.text('No hay materiales asignados a esta orden.', margin + 2, currentRowY);
+        currentRowY += 10;
+    }
+
+    // Signatures Area
+    const signY = pageHeight - 40;
+    doc.setDrawColor(0, 0, 0);
+    doc.setLineWidth(0.5);
+    doc.line(margin + 20, signY, margin + 80, signY);
+    doc.line(pageWidth - 80, signY, pageWidth - 20, signY);
+
+    doc.setFontSize(8);
+    doc.setTextColor(0, 0, 0);
+    doc.text('Firma Responsable', margin + 30, signY + 5);
+    doc.text('Firma Técnico', pageWidth - 70, signY + 5);
+
     doc.save(`${order.number}.pdf`);
   };
 
@@ -280,6 +421,36 @@ const MaintenanceManagement = ({ orders, onUpdateOrder }: { orders: MaintenanceO
         setRescheduleOrder(null);
         setNewDate('');
     }
+  };
+
+  const handleAddMaterial = () => {
+    if (!selectedOrderDetails || !selectedMatId) return;
+
+    const newMaterial = {
+        materialId: selectedMatId,
+        quantity: qtyMat
+    };
+
+    const updatedMaterials = [...(selectedOrderDetails.assignedMaterials || []), newMaterial];
+    const updatedOrder = { ...selectedOrderDetails, assignedMaterials: updatedMaterials };
+
+    onUpdateOrder(updatedOrder);
+    setSelectedOrderDetails(updatedOrder);
+    
+    // Reset add form
+    setIsAddingMaterial(false);
+    setSelectedMatId('');
+    setQtyMat(1);
+  };
+
+  const handleRemoveMaterial = (index: number) => {
+    if (!selectedOrderDetails) return;
+    const updatedMaterials = [...(selectedOrderDetails.assignedMaterials || [])];
+    updatedMaterials.splice(index, 1);
+    const updatedOrder = { ...selectedOrderDetails, assignedMaterials: updatedMaterials };
+    
+    onUpdateOrder(updatedOrder);
+    setSelectedOrderDetails(updatedOrder);
   };
 
   const handleAdvanceStatus = (e: React.MouseEvent, order: MaintenanceOrder) => {
@@ -295,6 +466,7 @@ const MaintenanceManagement = ({ orders, onUpdateOrder }: { orders: MaintenanceO
           nextStatus = MaintenanceStatus.IN_PROGRESS;
       } else if (order.status === MaintenanceStatus.IN_PROGRESS) {
           nextStatus = MaintenanceStatus.CLOSED;
+          updates.closedDate = new Date().toISOString().split('T')[0]; // Mark as closed today
       }
 
       if (nextStatus) {
@@ -304,9 +476,13 @@ const MaintenanceManagement = ({ orders, onUpdateOrder }: { orders: MaintenanceO
 
   const KanbanColumn = ({ status, color }: { status: MaintenanceStatus, color: string }) => {
     const columnOrders = filteredOrders.filter(o => o.status === status);
-    const visibleOrders = status === MaintenanceStatus.CLOSED && !showClosedHistory
-      ? columnOrders.filter(o => o.reportedDate === new Date().toISOString().split('T')[0])
-      : columnOrders;
+    
+    // Logic: 
+    // If status is CLOSED, only show orders where closedDate is TODAY.
+    // Older closed orders go to history.
+    const visibleOrders = status === MaintenanceStatus.CLOSED
+        ? columnOrders.filter(o => o.closedDate === new Date().toISOString().split('T')[0])
+        : columnOrders;
 
     return (
       <div className="min-w-[320px] w-[320px] bg-slate-100 rounded-xl flex flex-col h-full max-h-full flex-shrink-0">
@@ -367,7 +543,7 @@ const MaintenanceManagement = ({ orders, onUpdateOrder }: { orders: MaintenanceO
                         )}
                         
                         {/* Print Button - Only visible if PLANNED */}
-                        {order.status === MaintenanceStatus.PLANNED && (
+                        {(order.status === MaintenanceStatus.PLANNED || order.status === MaintenanceStatus.CLOSED) && (
                             <button 
                                 onClick={(e) => { e.stopPropagation(); generatePDF(order); }}
                                 title="Imprimir Orden"
@@ -395,6 +571,82 @@ const MaintenanceManagement = ({ orders, onUpdateOrder }: { orders: MaintenanceO
       </div>
     );
   };
+  
+  // History View Component
+  const HistoryView = () => {
+      const historyList = orders.filter(o => o.status === MaintenanceStatus.CLOSED);
+      
+      return (
+          <div className="h-full p-4 overflow-hidden flex flex-col">
+              <div className="bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col h-full overflow-hidden">
+                  <div className="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-50">
+                      <div>
+                          <h3 className="font-bold text-slate-800 flex items-center"><Archive size={20} className="mr-2 text-slate-500"/> Histórico de Órdenes Cerradas</h3>
+                          <p className="text-xs text-slate-500">Listado completo de intervenciones finalizadas</p>
+                      </div>
+                      <div className="bg-white px-3 py-1 rounded border border-slate-200 text-sm font-medium">
+                          Total: {historyList.length}
+                      </div>
+                  </div>
+                  <div className="flex-1 overflow-auto custom-scrollbar">
+                      <table className="w-full text-left text-sm">
+                          <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200 sticky top-0">
+                              <tr>
+                                  <th className="px-6 py-4">Nro. Orden</th>
+                                  <th className="px-6 py-4">Activo</th>
+                                  <th className="px-6 py-4">Descripción</th>
+                                  <th className="px-6 py-4">Tipo</th>
+                                  <th className="px-6 py-4">Fecha Cierre</th>
+                                  <th className="px-6 py-4">Técnico</th>
+                                  <th className="px-6 py-4 text-center">Acciones</th>
+                              </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                              {historyList.map(order => (
+                                  <tr key={order.id} className="hover:bg-slate-50">
+                                      <td className="px-6 py-3 font-mono text-slate-600 font-medium">{order.number}</td>
+                                      <td className="px-6 py-3 font-bold text-slate-700">{order.assetId}</td>
+                                      <td className="px-6 py-3 text-slate-600 truncate max-w-xs">{order.description.split('\n')[0]}</td>
+                                      <td className="px-6 py-3">
+                                          <span className={`text-[10px] font-bold px-2 py-1 rounded border ${
+                                            order.type === MaintenanceType.PREVENTIVE ? 'bg-indigo-50 text-indigo-700 border-indigo-100' : 'bg-rose-50 text-rose-700 border-rose-100'
+                                          }`}>
+                                              {order.type}
+                                          </span>
+                                      </td>
+                                      <td className="px-6 py-3 text-slate-500">{order.closedDate || order.plannedDate || '-'}</td>
+                                      <td className="px-6 py-3 text-slate-500 flex items-center">
+                                          {order.technician ? <><User size={14} className="mr-2"/> {order.technician}</> : <span className="text-slate-300 italic">No registrado</span>}
+                                      </td>
+                                      <td className="px-6 py-3 text-center flex items-center justify-center gap-2">
+                                          <button 
+                                            onClick={() => setSelectedOrderDetails(order)}
+                                            className="text-accent hover:underline font-medium text-xs"
+                                          >
+                                              Ver
+                                          </button>
+                                          <button 
+                                            onClick={() => generatePDF(order)}
+                                            className="text-slate-400 hover:text-slate-600"
+                                            title="Imprimir"
+                                          >
+                                            <Printer size={14} />
+                                          </button>
+                                      </td>
+                                  </tr>
+                              ))}
+                              {historyList.length === 0 && (
+                                  <tr>
+                                      <td colSpan={7} className="p-12 text-center text-slate-400">No hay historial de órdenes cerradas.</td>
+                                  </tr>
+                              )}
+                          </tbody>
+                      </table>
+                  </div>
+              </div>
+          </div>
+      );
+  };
 
   // Helper for Grid View dates
   const weekDates = Array.from({length: 7}).map((_, i) => {
@@ -414,7 +666,7 @@ const MaintenanceManagement = ({ orders, onUpdateOrder }: { orders: MaintenanceO
       
       {/* Reschedule Modal Overlay */}
       {rescheduleOrder && (
-          <div className="absolute inset-0 z-50 flex items-center justify-center bg-slate-900/20 backdrop-blur-sm">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/20 backdrop-blur-sm">
               <div className="bg-white p-6 rounded-xl shadow-2xl border border-slate-200 w-96 animate-in zoom-in-95">
                   <h4 className="font-bold text-lg mb-4 text-slate-800 flex items-center">
                       <CalendarClock className="mr-2 text-orange-500"/> Replanificar Orden
@@ -439,8 +691,8 @@ const MaintenanceManagement = ({ orders, onUpdateOrder }: { orders: MaintenanceO
 
       {/* Order Details Modal */}
       {selectedOrderDetails && (
-          <div className="absolute inset-0 z-50 flex items-center justify-center bg-slate-900/20 backdrop-blur-sm">
-              <div className="bg-white rounded-xl shadow-2xl border border-slate-200 w-[600px] max-w-full max-h-[90vh] flex flex-col animate-in zoom-in-95">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/20 backdrop-blur-sm">
+              <div className="bg-white rounded-xl shadow-2xl border border-slate-200 w-[600px] max-w-[95%] max-h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-95">
                   <div className="p-6 border-b border-slate-100 flex justify-between items-start">
                       <div>
                           <div className="flex items-center gap-2 mb-1">
@@ -456,12 +708,17 @@ const MaintenanceManagement = ({ orders, onUpdateOrder }: { orders: MaintenanceO
                                {selectedOrderDetails.priority === 'High' && <span className="ml-2 text-red-600 flex items-center text-xs"><AlertTriangle size={12} className="mr-1"/> Prioridad Alta</span>}
                           </p>
                       </div>
-                      <button onClick={() => setSelectedOrderDetails(null)} className="p-1 hover:bg-slate-100 rounded-full text-slate-400 hover:text-slate-700">
-                          <X size={20} />
-                      </button>
+                      <div className="flex items-center gap-2">
+                          <button onClick={() => generatePDF(selectedOrderDetails)} className="p-1 hover:bg-slate-100 rounded-full text-slate-400 hover:text-slate-700" title="Imprimir">
+                             <Printer size={20} />
+                          </button>
+                          <button onClick={() => setSelectedOrderDetails(null)} className="p-1 hover:bg-slate-100 rounded-full text-slate-400 hover:text-slate-700">
+                              <X size={20} />
+                          </button>
+                      </div>
                   </div>
                   
-                  <div className="p-6 overflow-y-auto custom-scrollbar space-y-6">
+                  <div className="p-6 overflow-y-auto custom-scrollbar space-y-6 flex-1 min-h-0">
                       <div className="bg-slate-50 p-4 rounded-lg border border-slate-100">
                           <h4 className="text-xs font-bold text-slate-500 uppercase mb-2">Descripción del Trabajo</h4>
                           <p className="text-slate-800 text-sm whitespace-pre-wrap">{selectedOrderDetails.description}</p>
@@ -486,21 +743,75 @@ const MaintenanceManagement = ({ orders, onUpdateOrder }: { orders: MaintenanceO
                       </div>
 
                       <div>
-                          <h4 className="text-xs font-bold text-slate-500 uppercase mb-2 flex items-center justify-between">
-                              <span>Materiales Asignados</span>
-                              {selectedOrderDetails.status !== MaintenanceStatus.CLOSED && <button className="text-accent text-[10px] hover:underline flex items-center"><Plus size={10} className="mr-1"/> Agregar</button>}
-                          </h4>
+                          <div className="flex justify-between items-center mb-2">
+                              <h4 className="text-xs font-bold text-slate-500 uppercase">Materiales Asignados</h4>
+                              {selectedOrderDetails.status !== MaintenanceStatus.CLOSED && !isAddingMaterial && (
+                                  <button onClick={() => setIsAddingMaterial(true)} className="text-accent text-[11px] hover:underline flex items-center font-semibold bg-blue-50 px-2 py-1 rounded border border-blue-100">
+                                      <Plus size={12} className="mr-1"/> Agregar Material
+                                  </button>
+                              )}
+                          </div>
+                          
+                          {/* Add Material Form */}
+                          {isAddingMaterial && (
+                              <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 mb-3 animate-in fade-in">
+                                  <label className="block text-xs font-bold text-slate-500 mb-1">Seleccionar Material</label>
+                                  <select 
+                                    className="w-full text-sm border border-slate-300 rounded p-1.5 mb-2 bg-white"
+                                    value={selectedMatId}
+                                    onChange={(e) => setSelectedMatId(e.target.value)}
+                                  >
+                                      <option value="">Seleccione...</option>
+                                      {materials.map(m => (
+                                          <option key={m.id} value={m.id}>{m.code} - {m.description} (Stock: {m.stock})</option>
+                                      ))}
+                                  </select>
+                                  <div className="flex gap-2 items-end">
+                                      <div className="w-24">
+                                        <label className="block text-xs font-bold text-slate-500 mb-1">Cantidad</label>
+                                        <input 
+                                            type="number" 
+                                            className="w-full text-sm border border-slate-300 rounded p-1.5 bg-white"
+                                            value={qtyMat}
+                                            onChange={(e) => setQtyMat(parseFloat(e.target.value))}
+                                        />
+                                      </div>
+                                      <button 
+                                        onClick={handleAddMaterial}
+                                        disabled={!selectedMatId || qtyMat <= 0}
+                                        className="bg-accent text-white text-sm px-3 py-1.5 rounded hover:bg-blue-600 disabled:opacity-50"
+                                      >
+                                          Guardar
+                                      </button>
+                                      <button onClick={() => setIsAddingMaterial(false)} className="text-slate-500 text-sm px-3 py-1.5 hover:bg-slate-200 rounded">Cancelar</button>
+                                  </div>
+                              </div>
+                          )}
+
                           {selectedOrderDetails.assignedMaterials && selectedOrderDetails.assignedMaterials.length > 0 ? (
                               <ul className="space-y-1">
-                                  {selectedOrderDetails.assignedMaterials.map((mat, idx) => (
-                                      <li key={idx} className="text-sm flex justify-between bg-white border border-slate-100 p-2 rounded">
-                                          <span className="text-slate-700 font-medium">{mat.materialId}</span>
-                                          <span className="text-slate-500">Cant: {mat.quantity}</span>
-                                      </li>
-                                  ))}
+                                  {selectedOrderDetails.assignedMaterials.map((mat, idx) => {
+                                      const matDetails = materials.find(m => m.id === mat.materialId);
+                                      return (
+                                        <li key={idx} className="text-sm flex justify-between items-center bg-white border border-slate-100 p-2 rounded group">
+                                            <div>
+                                                <span className="text-slate-700 font-medium block">{matDetails ? matDetails.description : mat.materialId}</span>
+                                                <span className="text-xs text-slate-400">{matDetails?.code}</span>
+                                            </div>
+                                            <div className="flex items-center gap-3">
+                                                <span className="text-slate-600 font-bold bg-slate-100 px-2 py-0.5 rounded">x{mat.quantity}</span>
+                                                {selectedOrderDetails.status !== MaintenanceStatus.CLOSED && (
+                                                    <button onClick={() => handleRemoveMaterial(idx)} className="text-slate-300 hover:text-red-500 transition-colors">
+                                                        <Trash2 size={14} />
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </li>
+                                      )
+                                  })}
                               </ul>
                           ) : (
-                              <p className="text-sm text-slate-400 italic">No hay materiales asignados.</p>
+                              !isAddingMaterial && <p className="text-sm text-slate-400 italic bg-slate-50 p-3 rounded border border-dashed border-slate-200">No hay materiales asignados.</p>
                           )}
                       </div>
 
@@ -518,7 +829,7 @@ const MaintenanceManagement = ({ orders, onUpdateOrder }: { orders: MaintenanceO
                            <button 
                                 onClick={(e) => {
                                     handleAdvanceStatus(e, selectedOrderDetails);
-                                    setSelectedOrderDetails(null); // Close modal on advance, or keep open? Let's close.
+                                    setSelectedOrderDetails(null);
                                 }}
                                 className="px-4 py-2 bg-accent text-white rounded-lg hover:bg-blue-600 font-medium text-sm flex items-center"
                            >
@@ -573,29 +884,60 @@ const MaintenanceManagement = ({ orders, onUpdateOrder }: { orders: MaintenanceO
              >
                 <CalendarDays size={16} className="mr-2"/> Calendario
              </button>
+             <button 
+                onClick={() => setViewMode('HISTORY')}
+                className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-all ${viewMode === 'HISTORY' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}
+             >
+                <History size={16} className="mr-2"/> Historial
+             </button>
           </div>
       </div>
 
       {/* Content Area */}
-      <div className="flex-1 overflow-hidden min-h-[500px] relative">
-          {viewMode === 'KANBAN' ? (
-              <div className="absolute inset-0 overflow-x-auto overflow-y-hidden">
-                <div className="flex h-full gap-4 pb-4 px-2 min-w-max">
+      <div className="flex-1 overflow-hidden relative border-t border-slate-200 bg-slate-100">
+          {viewMode === 'KANBAN' && (
+              <div className="h-full overflow-x-auto overflow-y-hidden p-4">
+                <div className="flex h-full gap-4 min-w-max">
                     <KanbanColumn status={MaintenanceStatus.PENDING} color="bg-red-500" />
                     <KanbanColumn status={MaintenanceStatus.PLANNED} color="bg-orange-500" />
                     <KanbanColumn status={MaintenanceStatus.IN_PROGRESS} color="bg-blue-500" />
                     <KanbanColumn status={MaintenanceStatus.CLOSED} color="bg-green-500" />
                 </div>
               </div>
-          ) : (
-              <div className="flex flex-col h-full bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          )}
+          
+          {viewMode === 'GRID' && (
+              <div className="flex flex-col h-full bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden m-4">
                   {/* Calendar Navigation */}
                   <div className="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-50">
-                     <button onClick={() => changeWeek(-1)} className="p-1 hover:bg-slate-200 rounded text-slate-500"><ChevronLeft/></button>
+                     <div className="flex items-center gap-2">
+                         <button onClick={() => changeWeek(-1)} className="p-1 hover:bg-slate-200 rounded text-slate-500"><ChevronLeft/></button>
+                         {/* Date Range Selector */}
+                         <div className="relative">
+                            <input 
+                                type="date" 
+                                className="pl-8 pr-2 py-1 border border-slate-300 rounded text-sm bg-white hover:bg-slate-50 focus:ring-2 focus:ring-accent outline-none cursor-pointer text-slate-600"
+                                onChange={(e) => {
+                                    if(!e.target.value) return;
+                                    const d = new Date(e.target.value);
+                                    // Calculate monday of that week
+                                    const day = d.getDay();
+                                    const diff = d.getDate() - day + (day === 0 ? -6 : 1); 
+                                    const monday = new Date(d.setDate(diff));
+                                    setWeekStartDate(monday);
+                                }}
+                            />
+                            <CalendarIcon className="absolute left-2 top-1.5 text-slate-400 pointer-events-none" size={14} />
+                         </div>
+                         <button onClick={() => changeWeek(1)} className="p-1 hover:bg-slate-200 rounded text-slate-500"><ChevronRight/></button>
+                     </div>
+                     
                      <span className="font-bold text-slate-700 text-lg capitalize">
                          {weekStartDate.toLocaleDateString('es-AR', { month: 'long', year: 'numeric' })}
                      </span>
-                     <button onClick={() => changeWeek(1)} className="p-1 hover:bg-slate-200 rounded text-slate-500"><ChevronRight/></button>
+                     
+                     {/* Placeholder to balance flex */}
+                     <div className="w-24"></div> 
                   </div>
                   
                   {/* Calendar Grid */}
@@ -614,7 +956,11 @@ const MaintenanceManagement = ({ orders, onUpdateOrder }: { orders: MaintenanceO
                                      </div>
                                      <div className="p-2 flex-1 bg-white space-y-2 overflow-y-auto">
                                          {dayOrders.map(order => (
-                                             <div key={order.id} className="p-2 rounded border border-slate-200 bg-white shadow-sm text-xs hover:border-accent cursor-pointer group">
+                                             <div 
+                                                key={order.id} 
+                                                onClick={() => setSelectedOrderDetails(order)}
+                                                className="p-2 rounded border border-slate-200 bg-white shadow-sm text-xs hover:border-accent cursor-pointer group hover:shadow-md transition-all"
+                                             >
                                                  <div className="flex justify-between items-start mb-1">
                                                      <span className="font-bold text-slate-700">{order.assetId}</span>
                                                      <span className={`w-2 h-2 rounded-full ${order.type === MaintenanceType.PREVENTIVE ? 'bg-indigo-500' : 'bg-rose-500'}`}></span>
@@ -622,7 +968,7 @@ const MaintenanceManagement = ({ orders, onUpdateOrder }: { orders: MaintenanceO
                                                  <p className="text-slate-500 truncate mb-1">{order.description.split('\n')[0]}</p>
                                                  <div className="flex justify-between items-center text-[10px] text-slate-400">
                                                      <span>{order.number}</span>
-                                                     <button onClick={() => { setRescheduleOrder(order); setNewDate(dateStr); }} className="opacity-0 group-hover:opacity-100 hover:text-orange-500"><CalendarClock size={12}/></button>
+                                                     <button onClick={(e) => { e.stopPropagation(); setRescheduleOrder(order); setNewDate(dateStr); }} className="opacity-0 group-hover:opacity-100 hover:text-orange-500 p-1 hover:bg-orange-50 rounded"><CalendarClock size={12}/></button>
                                                  </div>
                                              </div>
                                          ))}
@@ -639,6 +985,8 @@ const MaintenanceManagement = ({ orders, onUpdateOrder }: { orders: MaintenanceO
                   </div>
               </div>
           )}
+
+          {viewMode === 'HISTORY' && <HistoryView />}
       </div>
     </div>
   );

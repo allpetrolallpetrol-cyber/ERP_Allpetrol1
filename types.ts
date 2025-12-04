@@ -160,6 +160,7 @@ export interface MaintenanceOrder {
   priority: 'High' | 'Medium' | 'Low';
   reportedDate: string;
   plannedDate?: string;
+  closedDate?: string; // New field to track when it was closed
   assignedMaterials: { materialId: string; quantity: number }[];
   technician?: string;
   origin?: 'MANUAL' | 'ROUTINE'; // To distinguish manual requests from PM planner
