@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { HashRouter, Routes, Route, Link, useLocation } from 'react-router-dom';
 import { 
@@ -13,7 +14,7 @@ import {
 } from 'lucide-react';
 import Commercial from './components/Commercial';
 import MasterData from './components/MasterData';
-import Maintenance from './components/Maintenance';
+import Maintenance from './components/maintenance/index'; // Updated Import
 import Warehouse from './components/Warehouse';
 import UserManagement from './components/Users';
 import { MasterDataProvider } from './contexts/MasterDataContext';

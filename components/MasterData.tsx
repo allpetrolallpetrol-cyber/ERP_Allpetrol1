@@ -1,7 +1,8 @@
+
 import React, { useState } from 'react';
-import { Plus, Save, Trash2, Edit2, Search, List, MapPin, Ruler, Tag, Hash, CheckSquare, X, CheckCircle, CalendarClock, Cog, Truck, Settings, ArrowLeft } from 'lucide-react';
+import { Plus, Save, Trash2, Edit2, Search, List, MapPin, Ruler, Tag, Hash, CheckSquare, X, CheckCircle, CalendarClock, Cog, Truck, Settings, ArrowLeft, AlertTriangle } from 'lucide-react';
 import { useMasterData } from '../contexts/MasterDataContext';
-import { Material, MaintenanceRoutine, AssetType, Asset } from '../types';
+import { Material, MaintenanceRoutine, AssetType, Asset, ChecklistModel, ChecklistItemDefinition } from '../types';
 
 // --- Reusable UI Components ---
 
@@ -62,6 +63,7 @@ const InlineRoutineManager = ({ assetId }: { assetId: string }) => {
 
     // Form State
     const [name, setName] = useState('');
+    const [description, setDescription] = useState('');
     const [frequency, setFrequency] = useState('');
     const [discipline, setDiscipline] = useState('');
     const [hours, setHours] = useState('');
@@ -76,6 +78,7 @@ const InlineRoutineManager = ({ assetId }: { assetId: string }) => {
             id: `RT-${Date.now()}`,
             assetId: assetId,
             name,
+            description,
             frequencyDays: parseInt(frequency),
             discipline: discipline as any,
             estimatedHours: parseFloat(hours) || 1,
@@ -84,6 +87,7 @@ const InlineRoutineManager = ({ assetId }: { assetId: string }) => {
 
         addRoutine(newRoutine);
         setName('');
+        setDescription('');
         setFrequency('');
         setHours('');
     };
@@ -101,6 +105,7 @@ const InlineRoutineManager = ({ assetId }: { assetId: string }) => {
                         <thead className="text-slate-500 font-semibold border-b border-slate-200">
                             <tr>
                                 <th className="px-4 py-2">Rutina</th>
+                                <th className="px-4 py-2">Descripción</th>
                                 <th className="px-4 py-2">Disciplina</th>
                                 <th className="px-4 py-2">Frecuencia</th>
                                 <th className="px-4 py-2 text-right">Hs. Est.</th>
@@ -110,6 +115,7 @@ const InlineRoutineManager = ({ assetId }: { assetId: string }) => {
                             {assetRoutines.map(r => (
                                 <tr key={r.id} className="bg-white">
                                     <td className="px-4 py-2 font-medium text-slate-800">{r.name}</td>
+                                    <td className="px-4 py-2 text-slate-500 max-w-xs truncate" title={r.description}>{r.description || '-'}</td>
                                     <td className="px-4 py-2 text-slate-500">{r.discipline}</td>
                                     <td className="px-4 py-2">Cada {r.frequencyDays} días</td>
                                     <td className="px-4 py-2 text-right">{r.estimatedHours} h</td>
@@ -127,13 +133,13 @@ const InlineRoutineManager = ({ assetId }: { assetId: string }) => {
             {/* Add New Routine Form */}
             <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
                 <h4 className="text-sm font-bold text-blue-800 mb-3 flex items-center"><Plus size={16} className="mr-1"/> Agregar Nueva Rutina</h4>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
-                    <div className="md:col-span-1">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                    <div className="md:col-span-2">
                         <label className="block text-xs font-bold text-slate-500 mb-1">Nombre Tarea</label>
                         <input className="w-full px-2 py-1.5 border border-blue-200 rounded text-sm focus:ring-1 focus:ring-accent bg-white" placeholder="Ej. Cambio Aceite" value={name} onChange={e => setName(e.target.value)} />
                     </div>
-                    <div>
-                        <label className="block text-xs font-bold text-slate-500 mb-1">Disciplina</label>
+                    <div className="md:col-span-1">
+                         <label className="block text-xs font-bold text-slate-500 mb-1">Disciplina</label>
                         <select className="w-full px-2 py-1.5 border border-blue-200 rounded text-sm bg-white" value={discipline} onChange={e => setDiscipline(e.target.value)}>
                              <option value="">Seleccionar...</option>
                             <option value="Mecánica">Mecánica</option>
@@ -143,13 +149,17 @@ const InlineRoutineManager = ({ assetId }: { assetId: string }) => {
                             <option value="General">General</option>
                         </select>
                     </div>
-                    <div>
-                        <label className="block text-xs font-bold text-slate-500 mb-1">Frec. (Días)</label>
-                        <input type="number" className="w-full px-2 py-1.5 border border-blue-200 rounded text-sm bg-white" placeholder="90" value={frequency} onChange={e => setFrequency(e.target.value)} />
-                    </div>
-                     <div>
+                    <div className="md:col-span-1">
                         <label className="block text-xs font-bold text-slate-500 mb-1">Horas Est.</label>
                         <input type="number" className="w-full px-2 py-1.5 border border-blue-200 rounded text-sm bg-white" placeholder="1" value={hours} onChange={e => setHours(e.target.value)} />
+                    </div>
+                    <div className="md:col-span-3">
+                        <label className="block text-xs font-bold text-slate-500 mb-1">Descripción / Instrucciones (Qué revisar)</label>
+                        <input className="w-full px-2 py-1.5 border border-blue-200 rounded text-sm focus:ring-1 focus:ring-accent bg-white" placeholder="Detalle de la tarea..." value={description} onChange={e => setDescription(e.target.value)} />
+                    </div>
+                    <div className="md:col-span-1">
+                        <label className="block text-xs font-bold text-slate-500 mb-1">Frec. (Días)</label>
+                        <input type="number" className="w-full px-2 py-1.5 border border-blue-200 rounded text-sm bg-white" placeholder="90" value={frequency} onChange={e => setFrequency(e.target.value)} />
                     </div>
                 </div>
                 <div className="mt-3 flex justify-end">
@@ -250,8 +260,8 @@ const AssetDetailView = ({ asset, onSave, onCancel }: { asset: Partial<Asset> | 
                                     <Select 
                                         label="Categoría Máquina" 
                                         options={machineTypes} 
-                                        value={formData.location} // Just reusing a field for mock
-                                        onChange={() => {}} 
+                                        value={formData.subtype} // Saving subtype
+                                        onChange={(e: any) => handleChange('subtype', e.target.value)} 
                                     />
                                     <Select 
                                         label="Ubicación Física" 
@@ -265,7 +275,12 @@ const AssetDetailView = ({ asset, onSave, onCancel }: { asset: Partial<Asset> | 
                              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 mb-6">
                                 <h4 className="text-sm font-bold text-slate-700 mb-4 flex items-center"><Truck size={16} className="mr-2"/> Detalles de Vehículo</h4>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <Select label="Tipo Vehículo" options={vehicleTypes} />
+                                    <Select 
+                                        label="Tipo Vehículo" 
+                                        options={vehicleTypes}
+                                        value={formData.subtype} // Saving subtype
+                                        onChange={(e: any) => handleChange('subtype', e.target.value)}
+                                    />
                                     <Input label="Patente / Dominio" value={formData.plate || ''} onChange={(e:any) => handleChange('plate', e.target.value)} />
                                     <Input label="Kilometraje Actual" type="number" value={formData.mileage || ''} onChange={(e:any) => handleChange('mileage', parseFloat(e.target.value))} />
                                 </div>
@@ -320,8 +335,12 @@ const AssetMasterView = () => {
         if (!exists) {
             addAsset(asset);
         } else {
-            // Update logic would go here (need updateAsset in context, but for now assuming addAsset might handle or we just mock)
-            // For this UI demo, let's just pretend update
+            // Update logic (Mock)
+            // In a real implementation with global state management (like Redux/Context), we would dispatch an update action.
+            // Since we are using a simplified context addAsset for now and checking existence:
+            // We need an updateAsset method in context, but for now we'll just alert.
+            // Actually, we can just replace the object in the list if we had setAssets, but we only have addAsset exposed.
+            // Let's assume for this demo that the user sees the update reflected locally if we managed state better.
             alert("Activo actualizado correctamente.");
         }
         setViewMode('LIST');
@@ -365,6 +384,7 @@ const AssetMasterView = () => {
                         <tr>
                             <th className="px-4 py-3">Código</th>
                             <th className="px-4 py-3">Nombre</th>
+                            <th className="px-4 py-3">Subtipo</th>
                             <th className="px-4 py-3">Marca/Modelo</th>
                             <th className="px-4 py-3">{filterType === AssetType.MACHINE ? 'Ubicación' : 'Patente'}</th>
                             <th className="px-4 py-3 text-right">Acciones</th>
@@ -375,6 +395,7 @@ const AssetMasterView = () => {
                             <tr key={asset.id} className="hover:bg-slate-50 group">
                                 <td className="px-4 py-3 font-mono text-slate-600">{asset.code}</td>
                                 <td className="px-4 py-3 font-medium text-slate-800">{asset.name}</td>
+                                <td className="px-4 py-3 text-slate-500"><span className="bg-slate-100 px-2 py-0.5 rounded text-xs border border-slate-200">{asset.subtype || '-'}</span></td>
                                 <td className="px-4 py-3 text-slate-500">{asset.brand} {asset.model}</td>
                                 <td className="px-4 py-3 text-slate-500">{filterType === AssetType.MACHINE ? asset.location : asset.plate}</td>
                                 <td className="px-4 py-3 text-right">
@@ -385,7 +406,7 @@ const AssetMasterView = () => {
                             </tr>
                         ))}
                          {filteredAssets.length === 0 && (
-                            <tr><td colSpan={5} className="p-8 text-center text-slate-400">No hay activos registrados en esta categoría.</td></tr>
+                            <tr><td colSpan={6} className="p-8 text-center text-slate-400">No hay activos registrados en esta categoría.</td></tr>
                         )}
                     </tbody>
                 </table>
@@ -435,18 +456,200 @@ const LocationForm = () => {
     );
 };
 
-const ChecklistModelForm = () => {
-    const { machineTypes } = useMasterData();
+// --- CHECKLIST MODEL MANAGER ---
+
+const ChecklistModelForm = ({ modelToEdit, onSave, onCancel }: { modelToEdit: ChecklistModel | null, onSave: (m: ChecklistModel) => void, onCancel: () => void }) => {
+    const { machineTypes, vehicleTypes } = useMasterData();
+    const [name, setName] = useState(modelToEdit?.name || '');
+    const [assetType, setAssetType] = useState<AssetType>(modelToEdit?.assetType || AssetType.MACHINE);
+    const [assetSubtype, setAssetSubtype] = useState(modelToEdit?.assetSubtype || '');
+    const [items, setItems] = useState<ChecklistItemDefinition[]>(modelToEdit?.items || []);
+    
+    // Temp Item State
+    const [newItemLabel, setNewItemLabel] = useState('');
+    const [newItemCritical, setNewItemCritical] = useState(false);
+
+    const handleAddItem = () => {
+        if (!newItemLabel.trim()) return;
+        setItems([...items, { id: `ITM-${Date.now()}`, label: newItemLabel, isCritical: newItemCritical }]);
+        setNewItemLabel('');
+        setNewItemCritical(false);
+    };
+
+    const handleRemoveItem = (id: string) => {
+        setItems(items.filter(i => i.id !== id));
+    };
+
+    const handleSave = () => {
+        if(!name || items.length === 0) {
+            alert("Nombre y al menos un item requeridos");
+            return;
+        }
+        const model: ChecklistModel = {
+            id: modelToEdit?.id || `CHKL-${Date.now()}`,
+            name,
+            assetType,
+            assetSubtype,
+            items
+        };
+        onSave(model);
+    };
+
     return (
-        <div className="space-y-4">
-            <Input label="Nombre del Modelo" placeholder="Ej. Inspección Diaria" />
-            <Select label="Tipo de Activo" options={machineTypes} />
-             <div className="bg-slate-50 p-4 rounded border border-slate-200 text-center text-slate-400 text-sm">
-                Configuración de items de checklist...
+        <div className="space-y-6">
+            <div className="flex justify-between items-center mb-4">
+                <button onClick={onCancel} className="text-slate-500 hover:text-slate-800 flex items-center text-sm"><ArrowLeft size={16} className="mr-1"/> Volver a la lista</button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="md:col-span-3">
+                    <Input label="Nombre del Modelo" value={name} onChange={(e: any) => setName(e.target.value)} placeholder="Ej. Inspección Diaria Autoelevador" />
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Tipo de Activo</label>
+                    <select 
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white"
+                        value={assetType}
+                        onChange={(e) => {
+                            setAssetType(e.target.value as AssetType);
+                            setAssetSubtype(''); // Reset subtype when type changes
+                        }}
+                    >
+                        <option value={AssetType.MACHINE}>Máquina</option>
+                        <option value={AssetType.VEHICLE}>Vehículo</option>
+                    </select>
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Subtipo / Categoría</label>
+                    <select 
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white"
+                        value={assetSubtype}
+                        onChange={(e) => setAssetSubtype(e.target.value)}
+                    >
+                        <option value="">Cualquiera</option>
+                        {assetType === AssetType.MACHINE 
+                            ? machineTypes.map(t => <option key={t} value={t}>{t}</option>)
+                            : vehicleTypes.map(t => <option key={t} value={t}>{t}</option>)
+                        }
+                    </select>
+                </div>
+            </div>
+
+            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                <h4 className="text-sm font-bold text-slate-700 mb-4 flex items-center"><CheckSquare size={16} className="mr-2"/> Items del Checklist</h4>
+                
+                <div className="flex gap-2 mb-4 items-end">
+                    <div className="flex-1">
+                        <label className="block text-xs font-bold text-slate-500 mb-1">Descripción del Item</label>
+                        <input 
+                            className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white"
+                            placeholder="Ej. Verificar nivel de aceite"
+                            value={newItemLabel}
+                            onChange={(e) => setNewItemLabel(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && handleAddItem()}
+                        />
+                    </div>
+                    <div className="flex items-center pb-2 px-2 bg-white border border-slate-200 rounded-lg h-[42px]">
+                         <input 
+                            type="checkbox" 
+                            id="isCritical"
+                            checked={newItemCritical}
+                            onChange={(e) => setNewItemCritical(e.target.checked)}
+                            className="mr-2 w-4 h-4 text-red-600 focus:ring-red-500 border-gray-300 rounded"
+                        />
+                        <label htmlFor="isCritical" className="text-sm text-slate-700 font-medium select-none cursor-pointer flex items-center">
+                            Es Crítico <AlertTriangle size={14} className="ml-1 text-red-500"/>
+                        </label>
+                    </div>
+                    <button onClick={handleAddItem} className="bg-slate-800 text-white px-4 py-2 rounded-lg hover:bg-slate-700 h-[42px]">
+                        Agregar
+                    </button>
+                </div>
+
+                <div className="space-y-2">
+                    {items.map((item, idx) => (
+                        <div key={item.id} className="flex justify-between items-center bg-white p-3 rounded border border-slate-200">
+                            <div className="flex items-center">
+                                <span className="bg-slate-100 text-slate-500 w-6 h-6 flex items-center justify-center rounded-full text-xs font-bold mr-3">{idx + 1}</span>
+                                <span className="text-slate-700">{item.label}</span>
+                                {item.isCritical && <span className="ml-3 bg-red-100 text-red-700 text-[10px] font-bold px-2 py-0.5 rounded border border-red-200 flex items-center"><AlertTriangle size={10} className="mr-1"/> CRÍTICO</span>}
+                            </div>
+                            <button onClick={() => handleRemoveItem(item.id)} className="text-slate-400 hover:text-red-500"><Trash2 size={16}/></button>
+                        </div>
+                    ))}
+                    {items.length === 0 && <p className="text-center text-slate-400 italic py-4">Agregue items para este checklist.</p>}
+                </div>
+            </div>
+
+            <div className="flex justify-end pt-4">
+                 <button onClick={handleSave} className="flex items-center px-6 py-2 bg-success text-white rounded-lg hover:bg-green-600 shadow-md">
+                    <Save size={18} className="mr-2"/> Guardar Modelo
+                </button>
             </div>
         </div>
     );
 };
+
+const ChecklistModelList = ({ onEdit }: { onEdit: (m: ChecklistModel | null) => void }) => {
+    const { checklistModels } = useMasterData();
+    return (
+        <div>
+            <SectionHeader title="Modelos de Checklist" actionLabel="Nuevo Modelo" icon={CheckSquare} onAction={() => onEdit(null)} />
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {checklistModels.map(model => (
+                    <div key={model.id} className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition-all group">
+                        <div className="flex justify-between items-start mb-2">
+                             <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${model.assetType === AssetType.MACHINE ? 'bg-orange-50 border-orange-200 text-orange-700' : 'bg-blue-50 border-blue-200 text-blue-700'}`}>
+                                {model.assetType === AssetType.MACHINE ? 'MÁQUINA' : 'VEHÍCULO'}
+                             </span>
+                             <button onClick={() => onEdit(model)} className="text-slate-400 hover:text-accent opacity-0 group-hover:opacity-100 transition-opacity">
+                                 <Edit2 size={16} />
+                             </button>
+                        </div>
+                        <h4 className="font-bold text-slate-800 mb-1">{model.name}</h4>
+                        <p className="text-xs text-slate-500 mb-3">Aplica a: {model.assetSubtype || 'Todos'}</p>
+                        
+                        <div className="flex items-center justify-between text-xs text-slate-400 border-t border-slate-100 pt-2">
+                            <span>{model.items.length} Puntos de control</span>
+                            {model.items.some(i => i.isCritical) && <span className="flex items-center text-red-500"><AlertTriangle size={12} className="mr-1"/> Críticos</span>}
+                        </div>
+                    </div>
+                ))}
+                {checklistModels.length === 0 && (
+                     <div className="col-span-3 text-center py-12 bg-slate-50 rounded-xl border border-dashed border-slate-300 text-slate-400">
+                        No hay modelos definidos.
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
+const ChecklistManager = () => {
+    const [view, setView] = useState<'LIST' | 'FORM'>('LIST');
+    const [selectedModel, setSelectedModel] = useState<ChecklistModel | null>(null);
+    const { addChecklistModel, updateChecklistModel } = useMasterData();
+
+    const handleEdit = (m: ChecklistModel | null) => {
+        setSelectedModel(m);
+        setView('FORM');
+    };
+
+    const handleSave = (m: ChecklistModel) => {
+        if (selectedModel) {
+            updateChecklistModel(m);
+        } else {
+            addChecklistModel(m);
+        }
+        setView('LIST');
+    };
+
+    if (view === 'FORM') {
+        return <ChecklistModelForm modelToEdit={selectedModel} onSave={handleSave} onCancel={() => setView('LIST')} />;
+    }
+    return <ChecklistModelList onEdit={handleEdit} />;
+};
+
 
 const NumeratorForm = () => (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -624,13 +827,7 @@ export default function MasterData() {
       case 'CHECKLISTS':
           return (
             <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                <SectionHeader title="Modelos de Checklist (Mantenimiento)" actionLabel="Nuevo Modelo" icon={CheckSquare} />
-                <ChecklistModelForm />
-                <div className="mt-6 flex justify-end">
-                    <button className="flex items-center px-6 py-2 bg-success text-white rounded-lg hover:bg-green-600 shadow-md">
-                        <Save size={18} className="mr-2"/> Guardar Modelo
-                    </button>
-                </div>
+                <ChecklistManager />
             </div>
           );
 

@@ -1,0 +1,223 @@
+
+import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
+import { MaintenanceOrder, MaintenanceStatus, MaintenanceType } from '../../types';
+import { Siren, LayoutDashboard, CalendarClock, ClipboardList, ArrowRight, Kanban, History, CalendarDays, FileBarChart } from 'lucide-react';
+import { KanbanBoard } from './KanbanBoard';
+import { CalendarView } from './CalendarView';
+import { PMPlanner } from './PMPlanner';
+import { WorkRequestForm } from './WorkRequestForm';
+import { ChecklistExecution } from './ChecklistExecution';
+import { OrderDetailModal } from './OrderDetailModal';
+import { ChecklistReport } from './ChecklistReport';
+
+const TODAY = new Date().toISOString().split('T')[0];
+const INITIAL_ORDERS: MaintenanceOrder[] = [
+  { id: '1', number: 'OT-2023-001', assetId: 'MAQ-001', description: 'Ruido en rulemanes', type: MaintenanceType.CORRECTIVE, status: MaintenanceStatus.PENDING, priority: 'High', reportedDate: '2023-10-25', assignedMaterials: [], origin: 'MANUAL' },
+  { id: '2', number: 'OT-2023-002', assetId: 'AA-123-BB', description: 'Cambio de aceite y filtros', type: MaintenanceType.PREVENTIVE, status: MaintenanceStatus.PLANNED, priority: 'Medium', reportedDate: '2023-10-26', plannedDate: TODAY, assignedMaterials: [{materialId: 'MAT-OIL', quantity: 2}], origin: 'ROUTINE' },
+  { id: '3', number: 'OT-2023-003', assetId: 'MAQ-004', description: 'Ajuste de bancada', type: MaintenanceType.CORRECTIVE, status: MaintenanceStatus.IN_PROGRESS, priority: 'Low', reportedDate: '2023-10-27', assignedMaterials: [], origin: 'MANUAL' },
+  { id: '4', number: 'OT-2023-004', assetId: 'MAQ-002', description: 'Revisión mensual eléctrica', type: MaintenanceType.PREVENTIVE, status: MaintenanceStatus.CLOSED, priority: 'Medium', reportedDate: '2023-10-20', closedDate: '2023-10-21', assignedMaterials: [], origin: 'ROUTINE' },
+];
+
+type ModuleView = 'MENU' | 'ORDERS' | 'PLANNER' | 'REQUESTS' | 'CHECKLISTS';
+
+export default function Maintenance() {
+    const [activeModule, setActiveModule] = useState<ModuleView>('MENU');
+    const [orders, setOrders] = useState<MaintenanceOrder[]>(INITIAL_ORDERS);
+    const location = useLocation();
+    
+    // Global Selection State
+    const [selectedOrder, setSelectedOrder] = useState<MaintenanceOrder | null>(null);
+
+    // View state for Orders dashboard
+    const [orderViewMode, setOrderViewMode] = useState<'KANBAN' | 'CALENDAR' | 'HISTORY'>('KANBAN');
+
+    // Data passing for checklist -> corrective
+    const [requestInitialData, setRequestInitialData] = useState<{assetId: string, description: string} | undefined>(undefined);
+
+    // Reset view when clicking the sidebar link
+    useEffect(() => {
+        if (location.pathname === '/maintenance') {
+            setActiveModule('MENU');
+        }
+    }, [location.key, location.pathname]);
+
+    const handleCreateOrders = (newOrders: MaintenanceOrder[]) => {
+        setOrders([...orders, ...newOrders]);
+        setActiveModule('ORDERS');
+        setOrderViewMode('KANBAN');
+        alert(`${newOrders.length} Órdenes generadas exitosamente.`);
+    };
+
+    const handleUpdateOrder = (updatedOrder: MaintenanceOrder) => {
+        setOrders(orders.map(o => o.id === updatedOrder.id ? updatedOrder : o));
+        if (selectedOrder && selectedOrder.id === updatedOrder.id) {
+            setSelectedOrder(updatedOrder);
+        }
+    };
+
+    const handleCreateRequest = (newOrder: MaintenanceOrder) => {
+        setOrders([...orders, newOrder]);
+        // Intentionally NOT navigating away. 
+        // Logic moved to WorkRequestForm to clear itself.
+        setRequestInitialData(undefined);
+        alert("Aviso de avería creado correctamente. Puede cargar otro si lo desea.");
+    };
+
+    const handleQuickCorrectiveOrder = (assetId: string, description: string) => {
+        const order: MaintenanceOrder = {
+            id: `REQ-${Date.now()}`,
+            number: `AVISO-${Math.floor(Math.random()*1000)}`,
+            assetId,
+            description,
+            type: MaintenanceType.CORRECTIVE,
+            status: MaintenanceStatus.PENDING,
+            priority: 'High',
+            reportedDate: new Date().toISOString().split('T')[0],
+            assignedMaterials: [],
+            origin: 'MANUAL'
+        };
+        setOrders(prev => [...prev, order]);
+    };
+
+    const LandingMenu = () => (
+        <div className="flex-1 overflow-y-auto p-6">
+            <div className="w-full max-w-6xl mx-auto flex flex-col items-center space-y-8 animate-in zoom-in-95 duration-300 py-10">
+                <div className="text-center mb-4">
+                    <h1 className="text-3xl font-bold text-slate-900 mb-2">Mantenimiento y Activos</h1>
+                    <p className="text-slate-500 text-lg">Seleccione una operación para comenzar</p>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 w-full">
+                     <button onClick={() => setActiveModule('REQUESTS')} className="group bg-white p-6 rounded-2xl shadow-sm border border-slate-200 hover:shadow-xl hover:border-rose-500 transition-all text-left flex flex-col">
+                        <div className="bg-rose-50 p-3 rounded-xl mb-4 w-fit group-hover:bg-rose-100 transition-colors"><Siren size={32} className="text-rose-600" /></div>
+                        <h3 className="text-xl font-bold text-slate-800 mb-2">Avisos de Avería</h3>
+                        <p className="text-sm text-slate-500 mb-4 flex-1">Reporte de fallas, solicitud de reparaciones correctivas.</p>
+                        <span className="text-rose-600 font-semibold text-sm flex items-center">Crear Solicitud <ArrowRight size={16} className="ml-2 transition-transform group-hover:translate-x-1"/></span>
+                    </button>
+
+                    <button onClick={() => setActiveModule('ORDERS')} className="group bg-white p-6 rounded-2xl shadow-sm border border-slate-200 hover:shadow-xl hover:border-blue-500 transition-all text-left flex flex-col">
+                        <div className="bg-blue-50 p-3 rounded-xl mb-4 w-fit group-hover:bg-blue-100 transition-colors"><LayoutDashboard size={32} className="text-blue-600" /></div>
+                        <h3 className="text-xl font-bold text-slate-800 mb-2">Gestión de Órdenes</h3>
+                        <p className="text-sm text-slate-500 mb-4 flex-1">Tablero Kanban, calendario y cierre de OTs.</p>
+                        <span className="text-blue-600 font-semibold text-sm flex items-center">Ir al Tablero <ArrowRight size={16} className="ml-2 transition-transform group-hover:translate-x-1"/></span>
+                    </button>
+
+                    <button onClick={() => setActiveModule('PLANNER')} className="group bg-white p-6 rounded-2xl shadow-sm border border-slate-200 hover:shadow-xl hover:border-indigo-500 transition-all text-left flex flex-col">
+                        <div className="bg-indigo-50 p-3 rounded-xl mb-4 w-fit group-hover:bg-indigo-100 transition-colors"><CalendarClock size={32} className="text-indigo-600" /></div>
+                        <h3 className="text-xl font-bold text-slate-800 mb-2">Planificador PM</h3>
+                        <p className="text-sm text-slate-500 mb-4 flex-1">Generación masiva de órdenes preventivas según rutinas.</p>
+                        <span className="text-indigo-600 font-semibold text-sm flex items-center">Planificar <ArrowRight size={16} className="ml-2 transition-transform group-hover:translate-x-1"/></span>
+                    </button>
+
+                     <button onClick={() => setActiveModule('CHECKLISTS')} className="group bg-white p-6 rounded-2xl shadow-sm border border-slate-200 hover:shadow-xl hover:border-green-500 transition-all text-left flex flex-col">
+                        <div className="bg-green-50 p-3 rounded-xl mb-4 w-fit group-hover:bg-green-100 transition-colors"><ClipboardList size={32} className="text-green-600" /></div>
+                        <h3 className="text-xl font-bold text-slate-800 mb-2">Inspecciones / Checklist</h3>
+                        <p className="text-sm text-slate-500 mb-4 flex-1">Ejecutar inspecciones y ver reportes históricos.</p>
+                        <span className="text-green-600 font-semibold text-sm flex items-center">Iniciar Inspección <ArrowRight size={16} className="ml-2 transition-transform group-hover:translate-x-1"/></span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+
+    if (activeModule === 'MENU') return <LandingMenu />;
+
+    if (activeModule === 'REQUESTS') {
+        return <WorkRequestForm existingOrders={orders} onSave={handleCreateRequest} onCancel={() => setActiveModule('MENU')} initialData={requestInitialData} />;
+    }
+
+    if (activeModule === 'PLANNER') {
+        return <PMPlanner onGenerateOrders={handleCreateOrders} onCancel={() => setActiveModule('MENU')} />;
+    }
+
+    if (activeModule === 'CHECKLISTS') {
+        return <ChecklistExecution onQuickCorrectiveOrder={handleQuickCorrectiveOrder} onBack={() => setActiveModule('MENU')} />;
+    }
+
+    // ORDERS MODULE (Dashboard)
+    return (
+        <div className="h-full flex flex-col space-y-4">
+            <div className="flex justify-between items-center bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                <div className="flex items-center">
+                     <button onClick={() => setActiveModule('MENU')} className="mr-4 text-slate-400 hover:text-slate-700 p-1 rounded-full hover:bg-slate-100"><ArrowRight className="rotate-180" size={20}/></button>
+                     <h2 className="text-xl font-bold text-slate-800">Tablero de Órdenes</h2>
+                </div>
+                
+                <div className="flex bg-slate-100 p-1 rounded-lg">
+                    <button 
+                        onClick={() => setOrderViewMode('KANBAN')}
+                        className={`flex items-center px-3 py-1.5 rounded-md text-sm font-medium transition-all ${orderViewMode === 'KANBAN' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                        <Kanban size={16} className="mr-2"/> Kanban
+                    </button>
+                    <button 
+                        onClick={() => setOrderViewMode('CALENDAR')}
+                        className={`flex items-center px-3 py-1.5 rounded-md text-sm font-medium transition-all ${orderViewMode === 'CALENDAR' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                        <CalendarDays size={16} className="mr-2"/> Calendario
+                    </button>
+                    <button 
+                        onClick={() => setOrderViewMode('HISTORY')}
+                        className={`flex items-center px-3 py-1.5 rounded-md text-sm font-medium transition-all ${orderViewMode === 'HISTORY' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                        <History size={16} className="mr-2"/> Histórico
+                    </button>
+                </div>
+            </div>
+
+            <div className="flex-1 overflow-hidden">
+                {orderViewMode === 'KANBAN' && <KanbanBoard orders={orders} onSelectOrder={setSelectedOrder} />}
+                {orderViewMode === 'CALENDAR' && <CalendarView orders={orders} onSelectOrder={setSelectedOrder} />}
+                {orderViewMode === 'HISTORY' && (
+                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 h-full overflow-hidden flex flex-col animate-in fade-in">
+                        <div className="p-4 bg-slate-50 border-b border-slate-200">
+                             <h3 className="font-bold text-slate-800 text-lg flex items-center">
+                                <History className="mr-2 text-slate-500" size={20}/> Órdenes Cerradas
+                            </h3>
+                        </div>
+                        <div className="flex-1 overflow-auto">
+                            <table className="w-full text-sm text-left">
+                                <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200 sticky top-0">
+                                    <tr>
+                                        <th className="p-3">Nro Orden</th>
+                                        <th className="p-3">Activo</th>
+                                        <th className="p-3">Descripción</th>
+                                        <th className="p-3">Fecha Cierre</th>
+                                        <th className="p-3 text-right">Acción</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                    {orders.filter(o => o.status === MaintenanceStatus.CLOSED).map(order => (
+                                        <tr key={order.id} className="hover:bg-slate-50 group">
+                                            <td className="p-3 font-mono text-slate-600">{order.number}</td>
+                                            <td className="p-3 font-medium text-slate-800">{order.assetId}</td>
+                                            <td className="p-3 text-slate-600 truncate max-w-xs">{order.description}</td>
+                                            <td className="p-3 text-slate-500">{order.closedDate}</td>
+                                            <td className="p-3 text-right">
+                                                <button onClick={() => setSelectedOrder(order)} className="text-blue-600 hover:underline font-medium">Ver Detalle</button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                    {orders.filter(o => o.status === MaintenanceStatus.CLOSED).length === 0 && (
+                                        <tr><td colSpan={5} className="p-8 text-center text-slate-400 italic">No hay órdenes históricas cerradas.</td></tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {selectedOrder && (
+                <OrderDetailModal 
+                    order={selectedOrder} 
+                    allOrders={orders}
+                    onClose={() => setSelectedOrder(null)} 
+                    onUpdateOrder={handleUpdateOrder} 
+                    readOnly={orderViewMode === 'CALENDAR' || orderViewMode === 'HISTORY'}
+                />
+            )}
+        </div>
+    );
+}

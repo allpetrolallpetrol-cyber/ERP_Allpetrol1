@@ -105,6 +105,7 @@ export interface Asset {
   code: string;
   name: string;
   type: AssetType;
+  subtype?: string; // New: To specify "Forklift", "Truck", "CNC", etc.
   brand: string;
   model: string;
   serialNumber: string;
@@ -144,6 +145,7 @@ export interface MaintenanceRoutine {
     id: string;
     assetId: string;
     name: string; // e.g. "Cambio de Filtros 500h"
+    description?: string; // Detailed description of tasks
     frequencyDays: number; // e.g. 90 days
     discipline: 'Mecánica' | 'Eléctrica' | 'Hidráulica' | 'Neumática' | 'General';
     lastExecutionDate: string; // ISO Date
@@ -165,6 +167,39 @@ export interface MaintenanceOrder {
   technician?: string;
   origin?: 'MANUAL' | 'ROUTINE'; // To distinguish manual requests from PM planner
   routineId?: string; // Link back to the PM Routine if applicable
+  relatedOrderId?: string; // New: Link to a parent order (e.g., a PM that generated this Corrective)
+}
+
+// Checklists
+export interface ChecklistItemDefinition {
+    id: string;
+    label: string;
+    isCritical: boolean;
+}
+
+export interface ChecklistModel {
+    id: string;
+    name: string; // e.g. "Inspección Diaria Autoelevador"
+    assetType: AssetType;
+    assetSubtype?: string; // e.g. "Autoelevador" (optional, for specific filtering)
+    items: ChecklistItemDefinition[];
+}
+
+export interface ChecklistExecution {
+    id: string;
+    date: string;
+    timestamp: number;
+    modelId: string;
+    modelName: string;
+    assetId: string;
+    assetName: string;
+    globalStatus: 'PASS' | 'FAIL';
+    items: {
+        label: string;
+        status: 'OK' | 'FAIL' | 'PENDING';
+        comment?: string;
+        isCritical: boolean;
+    }[];
 }
 
 // Warehouse

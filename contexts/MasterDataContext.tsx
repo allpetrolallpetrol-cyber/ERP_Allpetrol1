@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, ReactNode } from 'react';
-import { ApprovalRule, Material, Asset, AssetType, MaintenanceRoutine } from '../types';
+import { ApprovalRule, Material, Asset, AssetType, MaintenanceRoutine, ChecklistModel, ChecklistExecution } from '../types';
 
 // Define types for our lists
 interface Supplier {
@@ -21,6 +21,8 @@ interface MasterDataContextType {
   materials: Material[]; 
   assets: Asset[]; 
   routines: MaintenanceRoutine[]; // Added PM Routines
+  checklistModels: ChecklistModel[]; // Added Checklist Models
+  checklistExecutions: ChecklistExecution[]; // Added Checklist Reports
   users: {id: string, name: string, role: string}[]; 
   approvalRules: ApprovalRule[];
 
@@ -31,7 +33,10 @@ interface MasterDataContextType {
   addWarehouse: (val: string) => void;
   addMaterial: (val: Material) => void; 
   addAsset: (val: Asset) => void; 
-  addRoutine: (val: MaintenanceRoutine) => void; // Added function
+  addRoutine: (val: MaintenanceRoutine) => void; 
+  addChecklistModel: (val: ChecklistModel) => void; 
+  updateChecklistModel: (val: ChecklistModel) => void; 
+  addChecklistExecution: (val: ChecklistExecution) => void; // New function
   addApprovalRule: (rule: ApprovalRule) => void;
   deleteApprovalRule: (id: string) => void;
 }
@@ -116,12 +121,12 @@ export const MasterDataProvider = ({ children }: { children?: ReactNode }) => {
     }
   ]);
 
-  // Mock Assets
+  // Mock Assets - Updated with subtypes
   const [assets, setAssets] = useState<Asset[]>([
-      { id: 'MAQ-001', code: 'TR-01', name: 'Torno CNC Haas', type: AssetType.MACHINE, brand: 'Haas', model: 'ST-20', serialNumber: '123456', location: 'Nave Industrial A' },
-      { id: 'MAQ-002', code: 'PRE-05', name: 'Prensa Hidráulica 50T', type: AssetType.MACHINE, brand: 'Metalurg', model: 'PH-50', serialNumber: '987654', location: 'Nave Industrial A' },
-      { id: 'VEH-001', code: 'MOV-01', name: 'Autoelevador Toyota', type: AssetType.VEHICLE, brand: 'Toyota', model: '8FD', serialNumber: 'V-111', plate: 'AA123BB', mileage: 15000 },
-      { id: 'VEH-002', code: 'CAM-02', name: 'Camioneta Hilux', type: AssetType.VEHICLE, brand: 'Toyota', model: 'Hilux', serialNumber: 'V-222', plate: 'AD456CC', mileage: 45000 }
+      { id: 'MAQ-001', code: 'TR-01', name: 'Torno CNC Haas', type: AssetType.MACHINE, subtype: 'CNC', brand: 'Haas', model: 'ST-20', serialNumber: '123456', location: 'Nave Industrial A' },
+      { id: 'MAQ-002', code: 'PRE-05', name: 'Prensa Hidráulica 50T', type: AssetType.MACHINE, subtype: 'Pesada', brand: 'Metalurg', model: 'PH-50', serialNumber: '987654', location: 'Nave Industrial A' },
+      { id: 'VEH-001', code: 'MOV-01', name: 'Autoelevador Toyota', type: AssetType.VEHICLE, subtype: 'Autoelevador', brand: 'Toyota', model: '8FD', serialNumber: 'V-111', plate: 'AA123BB', mileage: 15000 },
+      { id: 'VEH-002', code: 'CAM-02', name: 'Camioneta Hilux', type: AssetType.VEHICLE, subtype: 'Utilitario', brand: 'Toyota', model: 'Hilux', serialNumber: 'V-222', plate: 'AD456CC', mileage: 45000 }
   ]);
 
   // Mock Routines
@@ -130,6 +135,42 @@ export const MasterDataProvider = ({ children }: { children?: ReactNode }) => {
       { id: 'RT-002', assetId: 'MAQ-001', name: 'Revisión Armario Eléctrico', frequencyDays: 90, discipline: 'Eléctrica', lastExecutionDate: '2023-08-01', estimatedHours: 4 },
       { id: 'RT-003', assetId: 'VEH-001', name: 'Service 500hs (Aceite y Filtros)', frequencyDays: 120, discipline: 'Mecánica', lastExecutionDate: '2023-06-20', estimatedHours: 6 },
       { id: 'RT-004', assetId: 'MAQ-002', name: 'Verificación Sellos Hidráulicos', frequencyDays: 60, discipline: 'Hidráulica', lastExecutionDate: '2023-09-01', estimatedHours: 3 },
+  ]);
+
+  // Mock Checklist Models
+  const [checklistModels, setChecklistModels] = useState<ChecklistModel[]>([
+      {
+          id: 'CHKL-001',
+          name: 'Inspección Pre-Uso Autoelevador',
+          assetType: AssetType.VEHICLE,
+          assetSubtype: 'Autoelevador',
+          items: [
+              { id: '1', label: 'Estado de neumáticos', isCritical: true },
+              { id: '2', label: 'Funcionamiento bocina y luces', isCritical: true },
+              { id: '3', label: 'Nivel de aceite hidráulico', isCritical: false },
+              { id: '4', label: 'Frenos (servicio y mano)', isCritical: true }
+          ]
+      }
+  ]);
+
+  // Mock Executions - Added initial mock data so list is not empty
+  const [checklistExecutions, setChecklistExecutions] = useState<ChecklistExecution[]>([
+      {
+          id: 'EXEC-MOCK-1',
+          date: new Date().toISOString(),
+          timestamp: Date.now() - 86400000, // Yesterday
+          modelId: 'CHKL-001',
+          modelName: 'Inspección Pre-Uso Autoelevador',
+          assetId: 'VEH-001',
+          assetName: 'Autoelevador Toyota',
+          globalStatus: 'PASS',
+          items: [
+              { label: 'Estado de neumáticos', status: 'OK', comment: '', isCritical: true },
+              { label: 'Funcionamiento bocina y luces', status: 'OK', comment: '', isCritical: true },
+              { label: 'Nivel de aceite hidráulico', status: 'OK', comment: '', isCritical: false },
+              { label: 'Frenos (servicio y mano)', status: 'OK', comment: '', isCritical: true }
+          ]
+      }
   ]);
 
   // Mock Users for Approval Logic
@@ -155,6 +196,11 @@ export const MasterDataProvider = ({ children }: { children?: ReactNode }) => {
   const addAsset = (val: Asset) => setAssets(prev => [...prev, val]);
   const addRoutine = (val: MaintenanceRoutine) => setRoutines(prev => [...prev, val]);
 
+  const addChecklistModel = (val: ChecklistModel) => setChecklistModels(prev => [...prev, val]);
+  const updateChecklistModel = (val: ChecklistModel) => setChecklistModels(prev => prev.map(m => m.id === val.id ? val : m));
+  
+  const addChecklistExecution = (val: ChecklistExecution) => setChecklistExecutions(prev => [val, ...prev]);
+
   const addApprovalRule = (rule: ApprovalRule) => setApprovalRules(prev => [...prev, rule]);
   const deleteApprovalRule = (id: string) => setApprovalRules(prev => prev.filter(r => r.id !== id));
 
@@ -169,6 +215,8 @@ export const MasterDataProvider = ({ children }: { children?: ReactNode }) => {
       materials,
       assets,
       routines,
+      checklistModels,
+      checklistExecutions,
       users,
       approvalRules,
       addRegion,
@@ -179,6 +227,9 @@ export const MasterDataProvider = ({ children }: { children?: ReactNode }) => {
       addMaterial,
       addAsset,
       addRoutine,
+      addChecklistModel,
+      updateChecklistModel,
+      addChecklistExecution,
       addApprovalRule,
       deleteApprovalRule
     }}>
