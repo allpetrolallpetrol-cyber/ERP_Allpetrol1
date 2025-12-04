@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { MaintenanceOrder, MaintenanceStatus, MaintenanceType } from '../../types';
+import { useMasterData } from '../../contexts/MasterDataContext';
 import { Siren, LayoutDashboard, CalendarClock, ClipboardList, ArrowRight, Kanban, History, CalendarDays, FileBarChart } from 'lucide-react';
 import { KanbanBoard } from './KanbanBoard';
 import { CalendarView } from './CalendarView';
@@ -22,6 +23,7 @@ const INITIAL_ORDERS: MaintenanceOrder[] = [
 type ModuleView = 'MENU' | 'ORDERS' | 'PLANNER' | 'REQUESTS' | 'CHECKLISTS';
 
 export default function Maintenance() {
+    const { routines, updateRoutine } = useMasterData();
     const [activeModule, setActiveModule] = useState<ModuleView>('MENU');
     const [orders, setOrders] = useState<MaintenanceOrder[]>(INITIAL_ORDERS);
     const location = useLocation();
@@ -50,9 +52,23 @@ export default function Maintenance() {
     };
 
     const handleUpdateOrder = (updatedOrder: MaintenanceOrder) => {
+        // Update local order state
         setOrders(orders.map(o => o.id === updatedOrder.id ? updatedOrder : o));
         if (selectedOrder && selectedOrder.id === updatedOrder.id) {
             setSelectedOrder(updatedOrder);
+        }
+
+        // Logic for Closed PM Orders -> Update Routine Cycle
+        if (updatedOrder.status === MaintenanceStatus.CLOSED && updatedOrder.routineId) {
+            const relatedRoutine = routines.find(r => r.id === updatedOrder.routineId);
+            if (relatedRoutine) {
+                // Update the lastExecutionDate to Today (or the close date)
+                updateRoutine({
+                    ...relatedRoutine,
+                    lastExecutionDate: updatedOrder.closedDate || TODAY
+                });
+                console.log(`Rutina ${relatedRoutine.name} actualizada. Nueva fecha base: ${updatedOrder.closedDate}`);
+            }
         }
     };
 

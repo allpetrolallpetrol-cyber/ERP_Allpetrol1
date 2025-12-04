@@ -58,38 +58,61 @@ const ClientForm = () => {
 // --- New Asset Manager Components ---
 
 const InlineRoutineManager = ({ assetId }: { assetId: string }) => {
-    const { routines, addRoutine } = useMasterData();
+    const { routines, addRoutine, updateRoutine } = useMasterData();
     const assetRoutines = routines.filter(r => r.assetId === assetId);
 
     // Form State
+    const [editingId, setEditingId] = useState<string | null>(null);
     const [name, setName] = useState('');
     const [description, setDescription] = useState('');
     const [frequency, setFrequency] = useState('');
     const [discipline, setDiscipline] = useState('');
     const [hours, setHours] = useState('');
 
-    const handleAddRoutine = () => {
+    const handleEditClick = (routine: MaintenanceRoutine) => {
+        setEditingId(routine.id);
+        setName(routine.name);
+        setDescription(routine.description || '');
+        setFrequency(routine.frequencyDays.toString());
+        setDiscipline(routine.discipline);
+        setHours(routine.estimatedHours.toString());
+    };
+
+    const handleCancelEdit = () => {
+        setEditingId(null);
+        setName('');
+        setDescription('');
+        setFrequency('');
+        setDiscipline('');
+        setHours('');
+    };
+
+    const handleSaveRoutine = () => {
         if (!name || !frequency || !discipline) {
             alert("Complete los campos requeridos");
             return;
         }
 
-        const newRoutine: MaintenanceRoutine = {
-            id: `RT-${Date.now()}`,
+        const routineData: MaintenanceRoutine = {
+            id: editingId || `RT-${Date.now()}`,
             assetId: assetId,
             name,
             description,
             frequencyDays: parseInt(frequency),
             discipline: discipline as any,
             estimatedHours: parseFloat(hours) || 1,
-            lastExecutionDate: new Date().toISOString().split('T')[0]
+            lastExecutionDate: editingId 
+                ? (routines.find(r => r.id === editingId)?.lastExecutionDate || new Date().toISOString().split('T')[0]) 
+                : new Date().toISOString().split('T')[0]
         };
 
-        addRoutine(newRoutine);
-        setName('');
-        setDescription('');
-        setFrequency('');
-        setHours('');
+        if (editingId) {
+            updateRoutine(routineData);
+        } else {
+            addRoutine(routineData);
+        }
+
+        handleCancelEdit(); // Reset form
     };
 
     return (
@@ -108,17 +131,21 @@ const InlineRoutineManager = ({ assetId }: { assetId: string }) => {
                                 <th className="px-4 py-2">Descripción</th>
                                 <th className="px-4 py-2">Disciplina</th>
                                 <th className="px-4 py-2">Frecuencia</th>
-                                <th className="px-4 py-2 text-right">Hs. Est.</th>
+                                <th className="px-4 py-2 text-right">Acciones</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
                             {assetRoutines.map(r => (
-                                <tr key={r.id} className="bg-white">
+                                <tr key={r.id} className={`bg-white ${editingId === r.id ? 'bg-blue-50' : ''}`}>
                                     <td className="px-4 py-2 font-medium text-slate-800">{r.name}</td>
                                     <td className="px-4 py-2 text-slate-500 max-w-xs truncate" title={r.description}>{r.description || '-'}</td>
                                     <td className="px-4 py-2 text-slate-500">{r.discipline}</td>
                                     <td className="px-4 py-2">Cada {r.frequencyDays} días</td>
-                                    <td className="px-4 py-2 text-right">{r.estimatedHours} h</td>
+                                    <td className="px-4 py-2 text-right">
+                                        <button onClick={() => handleEditClick(r)} className="text-accent hover:text-blue-700 p-1 rounded">
+                                            <Edit2 size={16} />
+                                        </button>
+                                    </td>
                                 </tr>
                             ))}
                         </tbody>
@@ -130,17 +157,20 @@ const InlineRoutineManager = ({ assetId }: { assetId: string }) => {
                 )}
             </div>
 
-            {/* Add New Routine Form */}
-            <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
-                <h4 className="text-sm font-bold text-blue-800 mb-3 flex items-center"><Plus size={16} className="mr-1"/> Agregar Nueva Rutina</h4>
+            {/* Add/Edit Routine Form */}
+            <div className={`p-4 rounded-xl border transition-all ${editingId ? 'bg-yellow-50 border-yellow-200' : 'bg-blue-50 border-blue-100'}`}>
+                <h4 className={`text-sm font-bold mb-3 flex items-center ${editingId ? 'text-yellow-800' : 'text-blue-800'}`}>
+                    {editingId ? <Edit2 size={16} className="mr-1"/> : <Plus size={16} className="mr-1"/>} 
+                    {editingId ? 'Editando Rutina' : 'Agregar Nueva Rutina'}
+                </h4>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                     <div className="md:col-span-2">
                         <label className="block text-xs font-bold text-slate-500 mb-1">Nombre Tarea</label>
-                        <input className="w-full px-2 py-1.5 border border-blue-200 rounded text-sm focus:ring-1 focus:ring-accent bg-white" placeholder="Ej. Cambio Aceite" value={name} onChange={e => setName(e.target.value)} />
+                        <input className="w-full px-2 py-1.5 border border-white/50 rounded text-sm focus:ring-1 focus:ring-accent bg-white" placeholder="Ej. Cambio Aceite" value={name} onChange={e => setName(e.target.value)} />
                     </div>
                     <div className="md:col-span-1">
                          <label className="block text-xs font-bold text-slate-500 mb-1">Disciplina</label>
-                        <select className="w-full px-2 py-1.5 border border-blue-200 rounded text-sm bg-white" value={discipline} onChange={e => setDiscipline(e.target.value)}>
+                        <select className="w-full px-2 py-1.5 border border-white/50 rounded text-sm bg-white" value={discipline} onChange={e => setDiscipline(e.target.value)}>
                              <option value="">Seleccionar...</option>
                             <option value="Mecánica">Mecánica</option>
                             <option value="Eléctrica">Eléctrica</option>
@@ -151,20 +181,25 @@ const InlineRoutineManager = ({ assetId }: { assetId: string }) => {
                     </div>
                     <div className="md:col-span-1">
                         <label className="block text-xs font-bold text-slate-500 mb-1">Horas Est.</label>
-                        <input type="number" className="w-full px-2 py-1.5 border border-blue-200 rounded text-sm bg-white" placeholder="1" value={hours} onChange={e => setHours(e.target.value)} />
+                        <input type="number" className="w-full px-2 py-1.5 border border-white/50 rounded text-sm bg-white" placeholder="1" value={hours} onChange={e => setHours(e.target.value)} />
                     </div>
                     <div className="md:col-span-3">
                         <label className="block text-xs font-bold text-slate-500 mb-1">Descripción / Instrucciones (Qué revisar)</label>
-                        <input className="w-full px-2 py-1.5 border border-blue-200 rounded text-sm focus:ring-1 focus:ring-accent bg-white" placeholder="Detalle de la tarea..." value={description} onChange={e => setDescription(e.target.value)} />
+                        <input className="w-full px-2 py-1.5 border border-white/50 rounded text-sm focus:ring-1 focus:ring-accent bg-white" placeholder="Detalle de la tarea..." value={description} onChange={e => setDescription(e.target.value)} />
                     </div>
                     <div className="md:col-span-1">
                         <label className="block text-xs font-bold text-slate-500 mb-1">Frec. (Días)</label>
-                        <input type="number" className="w-full px-2 py-1.5 border border-blue-200 rounded text-sm bg-white" placeholder="90" value={frequency} onChange={e => setFrequency(e.target.value)} />
+                        <input type="number" className="w-full px-2 py-1.5 border border-white/50 rounded text-sm bg-white" placeholder="90" value={frequency} onChange={e => setFrequency(e.target.value)} />
                     </div>
                 </div>
-                <div className="mt-3 flex justify-end">
-                    <button onClick={handleAddRoutine} className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-blue-700 shadow-sm">
-                        Guardar Rutina
+                <div className="mt-3 flex justify-end gap-2">
+                    {editingId && (
+                        <button onClick={handleCancelEdit} className="text-slate-500 px-3 py-1.5 text-sm font-medium hover:text-slate-800">
+                            Cancelar
+                        </button>
+                    )}
+                    <button onClick={handleSaveRoutine} className={`text-white px-3 py-1.5 rounded-lg text-sm font-medium shadow-sm ${editingId ? 'bg-yellow-600 hover:bg-yellow-700' : 'bg-blue-600 hover:bg-blue-700'}`}>
+                        {editingId ? 'Actualizar Rutina' : 'Guardar Rutina'}
                     </button>
                 </div>
             </div>

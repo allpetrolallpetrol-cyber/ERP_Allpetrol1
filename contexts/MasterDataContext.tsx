@@ -34,6 +34,7 @@ interface MasterDataContextType {
   addMaterial: (val: Material) => void; 
   addAsset: (val: Asset) => void; 
   addRoutine: (val: MaintenanceRoutine) => void; 
+  updateRoutine: (val: MaintenanceRoutine) => void; // New function
   addChecklistModel: (val: ChecklistModel) => void; 
   updateChecklistModel: (val: ChecklistModel) => void; 
   addChecklistExecution: (val: ChecklistExecution) => void; // New function
@@ -195,6 +196,7 @@ export const MasterDataProvider = ({ children }: { children?: ReactNode }) => {
   const addMaterial = (val: Material) => setMaterials(prev => [...prev, val]);
   const addAsset = (val: Asset) => setAssets(prev => [...prev, val]);
   const addRoutine = (val: MaintenanceRoutine) => setRoutines(prev => [...prev, val]);
+  const updateRoutine = (val: MaintenanceRoutine) => setRoutines(prev => prev.map(r => r.id === val.id ? val : r));
 
   const addChecklistModel = (val: ChecklistModel) => setChecklistModels(prev => [...prev, val]);
   const updateChecklistModel = (val: ChecklistModel) => setChecklistModels(prev => prev.map(m => m.id === val.id ? val : m));
@@ -227,6 +229,7 @@ export const MasterDataProvider = ({ children }: { children?: ReactNode }) => {
       addMaterial,
       addAsset,
       addRoutine,
+      updateRoutine,
       addChecklistModel,
       updateChecklistModel,
       addChecklistExecution,

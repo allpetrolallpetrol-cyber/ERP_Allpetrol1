@@ -2,7 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { useMasterData } from '../../contexts/MasterDataContext';
 import { MaintenanceOrder, MaintenanceType, MaintenanceStatus } from '../../types';
-import { Siren, AlertTriangle, Clock, Link as LinkIcon, ArrowRight } from 'lucide-react';
+import { Siren, AlertTriangle, Clock, Link as LinkIcon, ArrowRight, ArrowLeft } from 'lucide-react';
 
 export const WorkRequestForm = ({ existingOrders, onSave, onCancel, initialData }: { existingOrders: MaintenanceOrder[], onSave: (o: MaintenanceOrder) => void, onCancel: () => void, initialData?: { assetId: string, description: string } }) => {
     const { assets } = useMasterData();
@@ -57,7 +57,8 @@ export const WorkRequestForm = ({ existingOrders, onSave, onCancel, initialData 
 
     return (
         <div className="bg-white rounded-xl border border-slate-200 max-w-2xl mx-auto shadow-sm animate-in zoom-in-95 flex flex-col" style={{ height: 'calc(100vh - 150px)' }}>
-            <div className="p-6 border-b border-slate-100 bg-slate-50 rounded-t-xl shrink-0">
+            <div className="p-4 md:p-6 border-b border-slate-100 bg-slate-50 rounded-t-xl shrink-0 flex items-center">
+                <button onClick={onCancel} className="mr-4 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-full p-1"><ArrowLeft size={20}/></button>
                 <h3 className="text-xl font-bold text-slate-800 flex items-center"><Siren className="mr-2 text-rose-500"/> Nuevo Aviso de Avería</h3>
             </div>
             

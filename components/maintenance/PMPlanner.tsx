@@ -2,7 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { useMasterData } from '../../contexts/MasterDataContext';
 import { MaintenanceOrder, MaintenanceStatus, MaintenanceType } from '../../types';
-import { CalendarDays, PlayCircle, CheckCircle } from 'lucide-react';
+import { CalendarDays, PlayCircle, CheckCircle, ArrowLeft } from 'lucide-react';
 
 export const PMPlanner = ({ onGenerateOrders, onCancel }: { onGenerateOrders: (newOrders: MaintenanceOrder[]) => void, onCancel: () => void }) => {
     const { routines, assets } = useMasterData();
@@ -74,6 +74,7 @@ export const PMPlanner = ({ onGenerateOrders, onCancel }: { onGenerateOrders: (n
         <div className="h-full flex flex-col bg-slate-50 animate-in fade-in slide-in-from-bottom-4">
             <div className="bg-white px-6 py-4 border-b border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div className="flex items-center">
+                    <button onClick={onCancel} className="mr-4 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-full p-1"><ArrowLeft size={20}/></button>
                     <div className="bg-blue-100 p-2 rounded-lg text-accent mr-3">
                         <CalendarDays size={24} />
                     </div>
