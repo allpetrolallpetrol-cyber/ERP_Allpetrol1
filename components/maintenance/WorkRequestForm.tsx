@@ -5,7 +5,7 @@ import { MaintenanceOrder, MaintenanceType, MaintenanceStatus } from '../../type
 import { Siren, AlertTriangle, Clock, Link as LinkIcon, ArrowRight, ArrowLeft } from 'lucide-react';
 
 export const WorkRequestForm = ({ existingOrders, onSave, onCancel, initialData }: { existingOrders: MaintenanceOrder[], onSave: (o: MaintenanceOrder) => void, onCancel: () => void, initialData?: { assetId: string, description: string } }) => {
-    const { assets } = useMasterData();
+    const { assets, getNextId } = useMasterData();
     const [assetId, setAssetId] = useState(initialData?.assetId || '');
     const [desc, setDesc] = useState(initialData?.description || '');
     const [priority, setPriority] = useState('Medium');
@@ -31,9 +31,12 @@ export const WorkRequestForm = ({ existingOrders, onSave, onCancel, initialData 
         if(!assetId || !desc) return alert("Complete los campos obligatorios");
         if(originType === 'DERIVED' && !parentOrderId) return alert("Debe seleccionar la Orden Preventiva de origen.");
 
+        // Generate official Number
+        const number = getNextId('WORK_REQUEST');
+
         const order: MaintenanceOrder = {
             id: `REQ-${Date.now()}`,
-            number: `AVISO-${Math.floor(Math.random()*1000)}`,
+            number: number,
             assetId,
             description: desc,
             type: MaintenanceType.CORRECTIVE,

@@ -5,7 +5,7 @@ import { MaintenanceOrder, MaintenanceStatus, MaintenanceType } from '../../type
 import { CalendarDays, PlayCircle, CheckCircle, ArrowLeft } from 'lucide-react';
 
 export const PMPlanner = ({ onGenerateOrders, onCancel }: { onGenerateOrders: (newOrders: MaintenanceOrder[]) => void, onCancel: () => void }) => {
-    const { routines, assets } = useMasterData();
+    const { routines, assets, getNextId } = useMasterData();
     const [horizonDays, setHorizonDays] = useState(30);
     const [selectedRoutineIds, setSelectedRoutineIds] = useState<string[]>([]);
 
@@ -51,9 +51,12 @@ export const PMPlanner = ({ onGenerateOrders, onCancel }: { onGenerateOrders: (n
 
         const newOrders: MaintenanceOrder[] = selectedRoutineIds.map(rid => {
             const routine = plannedRoutines.find(r => r.id === rid)!;
+            // Use Next ID Generator for Maintenance Order
+            const number = getNextId('MAINTENANCE_ORDER');
+
             return {
                 id: `PM-${Date.now()}-${Math.floor(Math.random()*1000)}`,
-                number: `OT-PM-${Math.floor(Math.random() * 10000)}`,
+                number: number,
                 assetId: routine.assetId,
                 description: `[PREVENTIVO] ${routine.name}\n${routine.description || ''}\nDisciplina: ${routine.discipline}\nHoras Est.: ${routine.estimatedHours}`,
                 type: MaintenanceType.PREVENTIVE,

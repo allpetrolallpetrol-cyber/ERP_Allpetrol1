@@ -42,7 +42,7 @@ import { RFQ, OrderStatus, RFQItem, SupplierQuote, ApprovalRule, QuoteItemDetail
 
 // 1. New RFQ Form (Supports Creation and Editing)
 const NewRFQForm = ({ initialData, onSave, onCancel }: { initialData?: RFQ, onSave: (rfq: any) => void, onCancel: () => void }) => {
-    const { suppliers, materials } = useMasterData();
+    const { suppliers, materials, getNextId } = useMasterData();
     const [items, setItems] = useState<RFQItem[]>(initialData?.items || []);
     
     // Temp item state
@@ -135,9 +135,12 @@ const NewRFQForm = ({ initialData, onSave, onCancel }: { initialData?: RFQ, onSa
     const createRFQObject = (status: OrderStatus) => {
         const selectedSupplierObjs = uniqueSuppliers.map(s => ({id: s.id, name: s.name}));
         
+        // Generate ID only if it's a new record
+        const number = initialData?.number || getNextId('RFQ');
+
         return {
             id: initialData?.id || `RFQ-${Date.now()}`,
-            number: initialData?.number || `P-OFE-${Math.floor(Math.random() * 1000)}`,
+            number: number,
             date: initialData?.date || new Date().toISOString().split('T')[0],
             items: items,
             selectedSuppliers: selectedSupplierObjs,
@@ -881,7 +884,7 @@ const PurchaseOrdersList = ({ rfqs }: { rfqs: RFQ[] }) => {
                         const winner = po.quotes.find(q => q.isSelected);
                         return (
                             <tr key={po.id} className="border-b">
-                                <td className="p-4 font-bold">{po.number.replace('P-OFE', 'OC')}</td>
+                                <td className="p-4 font-bold">{po.number}</td>
                                 <td className="p-4">{winner?.supplierName}</td>
                                 <td className="p-4 text-right font-bold">${winner?.price.toLocaleString()}</td>
                                 <td className="p-4 text-center"><span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">Enviada</span></td>
@@ -968,6 +971,7 @@ const ApprovalSettings = () => {
 // --- Main Wrappers ---
 
 const ProcurementModule = () => {
+    const { getNextId } = useMasterData();
     const [activeTab, setActiveTab] = useState<'MANAGE_RFQ' | 'APPROVAL' | 'PO_LIST' | 'SETTINGS'>('MANAGE_RFQ');
     const [rfqs, setRfqs] = useState<RFQ[]>([]);
     const [showNewForm, setShowNewForm] = useState(false);
@@ -1001,27 +1005,25 @@ const ProcurementModule = () => {
     };
 
     const handleSplitAdjudicate = (originalRfq: RFQ, supplierId: string, itemIds: string[], amount: number) => {
-        // 1. Create the new Child PO (Approval)
-        const { approvalRules, users } = { approvalRules: [], users: [] }; // Mock access, logic handled in component usually but simplifying here
-        // We need users context here really, but let's assume simple approval for now or pass context down.
-        // For simplicity, hardcoded admin fallback if hook not present in this scope.
-        
         const adjudicatedItems = originalRfq.items.filter(i => itemIds.includes(i.materialId));
-        const quote = originalRfq.quotes.find(q => q.supplierId === supplierId);
         
+        // Generate new ID for the Purchase Order from context
+        const poNumber = getNextId('PURCHASE_ORDER');
+
         const newOrder: RFQ = {
             ...originalRfq,
-            id: `PO-REQ-${Date.now()}`, // New ID
+            id: `PO-REQ-${Date.now()}`, 
+            number: poNumber, // Assign official PO number here
             items: adjudicatedItems,
             quotes: originalRfq.quotes.map(q => {
                  if(q.supplierId === supplierId) {
-                     return { ...q, isSelected: true, price: amount }; // Mark winner only on the child
+                     return { ...q, isSelected: true, price: amount }; 
                  }
                  return { ...q, isSelected: false };
             }),
             winnerSupplierId: supplierId,
             status: OrderStatus.PENDING_APPROVAL,
-            selectedSuppliers: originalRfq.selectedSuppliers.filter(s => s.id === supplierId) // Only relevant supplier
+            selectedSuppliers: originalRfq.selectedSuppliers.filter(s => s.id === supplierId) 
         };
 
         // 2. Update the Original RFQ (Remove adjudicated items)
@@ -1032,10 +1034,6 @@ const ProcurementModule = () => {
             updatedOriginal = {
                 ...originalRfq,
                 items: remainingItems,
-                // Recalculate quote prices for remaining items? 
-                // In a real app, yes. Here visually we just rely on the component re-render logic.
-                // But we should clean up the quotes in the original to reflect reduced scope?
-                // For simplicity, we keep full quotes but the UI filters items based on `items` array.
             };
         }
 
@@ -1047,7 +1045,7 @@ const ProcurementModule = () => {
             setRfqs(prev => [...prev.filter(r => r.id !== originalRfq.id), newOrder]);
         }
 
-        alert("Items adjudicados correctamente. Se generó una orden pendiente de aprobación.");
+        alert(`Items adjudicados correctamente. Se generó la orden ${poNumber} pendiente de aprobación.`);
     };
     
     // Approval Handlers

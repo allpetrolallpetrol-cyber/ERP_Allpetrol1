@@ -1,8 +1,8 @@
 
 import React, { useState } from 'react';
-import { Plus, Save, Trash2, Edit2, Search, List, MapPin, Ruler, Tag, Hash, CheckSquare, X, CheckCircle, CalendarClock, Cog, Truck, Settings, ArrowLeft, AlertTriangle } from 'lucide-react';
+import { Plus, Save, Trash2, Edit2, Search, List, MapPin, Ruler, Tag, Hash, CheckSquare, X, CheckCircle, CalendarClock, Cog, Truck, Settings, ArrowLeft, AlertTriangle, FileDigit } from 'lucide-react';
 import { useMasterData } from '../contexts/MasterDataContext';
-import { Material, MaintenanceRoutine, AssetType, Asset, ChecklistModel, ChecklistItemDefinition } from '../types';
+import { Material, MaintenanceRoutine, AssetType, Asset, ChecklistModel, ChecklistItemDefinition, Numerator, DocumentType } from '../types';
 
 // --- Reusable UI Components ---
 
@@ -18,7 +18,11 @@ const Select = ({ label, options, ...props }: any) => (
     <label className="block text-sm font-medium text-slate-700 mb-1">{label}</label>
     <select className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-accent focus:border-accent outline-none bg-white" {...props}>
       <option value="">Seleccionar...</option>
-      {options.map((opt: string) => <option key={opt} value={opt}>{opt}</option>)}
+      {options.map((opt: any) => (
+          <option key={typeof opt === 'object' ? opt.value : opt} value={typeof opt === 'object' ? opt.value : opt}>
+              {typeof opt === 'object' ? opt.label : opt}
+          </option>
+      ))}
     </select>
   </div>
 );
@@ -686,12 +690,147 @@ const ChecklistManager = () => {
 };
 
 
-const NumeratorForm = () => (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Select label="Tipo Doc" options={['OC', 'Remito']} />
-        <Input label="Próximo Nro" type="number" />
-    </div>
-);
+// --- NUMERATOR MANAGER ---
+
+const NumeratorManager = () => {
+    const { numerators, addNumerator, updateNumerator } = useMasterData();
+    const [editingId, setEditingId] = useState<string | null>(null);
+    
+    // Form State
+    const [name, setName] = useState('');
+    const [prefix, setPrefix] = useState('');
+    const [currentValue, setCurrentValue] = useState('');
+    const [length, setLength] = useState('4');
+    const [assignedType, setAssignedType] = useState<DocumentType>('PURCHASE_ORDER');
+
+    const handleEdit = (n: Numerator) => {
+        setEditingId(n.id);
+        setName(n.name);
+        setPrefix(n.prefix);
+        setCurrentValue(n.currentValue.toString());
+        setLength(n.length.toString());
+        setAssignedType(n.assignedType);
+    };
+
+    const handleCancel = () => {
+        setEditingId(null);
+        setName('');
+        setPrefix('');
+        setCurrentValue('');
+    };
+
+    const handleSave = () => {
+        if (!name || !prefix || !currentValue) {
+            alert("Complete todos los campos obligatorios.");
+            return;
+        }
+
+        const numData: Numerator = {
+            id: editingId || `NUM-${Date.now()}`,
+            name,
+            prefix,
+            currentValue: parseInt(currentValue),
+            length: parseInt(length) || 4,
+            assignedType
+        };
+
+        if (editingId) {
+            updateNumerator(numData);
+        } else {
+            addNumerator(numData);
+        }
+        handleCancel();
+    };
+
+    const docTypeOptions: {value: DocumentType, label: string}[] = [
+        { value: 'RFQ', label: 'Petición de Oferta (RFQ)' },
+        { value: 'PURCHASE_ORDER', label: 'Orden de Compra (OC)' },
+        { value: 'MAINTENANCE_ORDER', label: 'Orden de Mantenimiento (OT)' },
+        { value: 'WORK_REQUEST', label: 'Aviso de Avería / Solicitud' },
+        { value: 'STOCK_MOVEMENT', label: 'Movimiento de Stock' },
+    ];
+
+    return (
+        <div className="space-y-6">
+            <SectionHeader title="Gestión de Numeradores" icon={FileDigit} />
+            
+            {/* Form */}
+            <div className={`p-5 rounded-xl border transition-all ${editingId ? 'bg-yellow-50 border-yellow-200' : 'bg-slate-50 border-slate-200'}`}>
+                <h4 className={`text-sm font-bold mb-4 flex items-center ${editingId ? 'text-yellow-800' : 'text-slate-800'}`}>
+                    {editingId ? <Edit2 size={16} className="mr-2"/> : <Plus size={16} className="mr-2"/>} 
+                    {editingId ? 'Editar Numerador' : 'Crear Nuevo Numerador'}
+                </h4>
+                
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 mb-1">Nombre / Descripción</label>
+                        <input className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white" placeholder="Ej. Orden de Compra Planta A" value={name} onChange={e => setName(e.target.value)} />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 mb-1">Funcionalidad Asignada</label>
+                        <select className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white" value={assignedType} onChange={e => setAssignedType(e.target.value as DocumentType)}>
+                            {docTypeOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                        </select>
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 mb-1">Prefijo</label>
+                        <input className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white" placeholder="Ej. OC-24-" value={prefix} onChange={e => setPrefix(e.target.value)} />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 mb-1">Último Valor Usado</label>
+                        <input type="number" className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white" placeholder="0" value={currentValue} onChange={e => setCurrentValue(e.target.value)} />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 mb-1">Longitud (Ceros)</label>
+                        <input type="number" className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white" placeholder="4" value={length} onChange={e => setLength(e.target.value)} />
+                    </div>
+                    <div className="flex items-end">
+                        <div className="flex gap-2 w-full">
+                            {editingId && <button onClick={handleCancel} className="flex-1 py-2 text-slate-500 bg-white border border-slate-300 rounded-lg hover:bg-slate-50">Cancelar</button>}
+                            <button onClick={handleSave} className="flex-1 py-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 shadow-sm font-medium">Guardar</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* List */}
+            <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                <table className="w-full text-sm text-left">
+                    <thead className="bg-slate-100 text-slate-600 font-semibold border-b border-slate-200">
+                        <tr>
+                            <th className="px-4 py-3">Nombre</th>
+                            <th className="px-4 py-3">Funcionalidad</th>
+                            <th className="px-4 py-3">Formato Ejemplo</th>
+                            <th className="px-4 py-3 text-right">Último Nro</th>
+                            <th className="px-4 py-3 text-right">Acción</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                        {numerators.map(num => (
+                            <tr key={num.id} className="hover:bg-slate-50">
+                                <td className="px-4 py-3 font-medium text-slate-800">{num.name}</td>
+                                <td className="px-4 py-3 text-slate-600">
+                                    <span className="bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-xs">
+                                        {docTypeOptions.find(o => o.value === num.assignedType)?.label || num.assignedType}
+                                    </span>
+                                </td>
+                                <td className="px-4 py-3 font-mono text-slate-500">
+                                    {num.prefix}{String(num.currentValue + 1).padStart(num.length, '0')}
+                                </td>
+                                <td className="px-4 py-3 text-right font-bold text-slate-700">{num.currentValue}</td>
+                                <td className="px-4 py-3 text-right">
+                                    <button onClick={() => handleEdit(num)} className="text-accent hover:text-blue-700 font-medium">
+                                        <Edit2 size={16} />
+                                    </button>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    );
+};
 
 
 // --- Main Component ---
@@ -868,23 +1007,8 @@ export default function MasterData() {
 
       case 'NUMERATORS':
         return (
-            <div>
-                 <SubTabs 
-                    tabs={[
-                        {id: 'NUM_CREATE', label: 'Crear Numerador'}, 
-                        {id: 'NUM_ASSIGN', label: 'Asignar Numerador'}
-                    ]} 
-                    current={activeSubTab} 
-                    onChange={setActiveSubTab} 
-                />
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                    {activeSubTab === 'NUM_CREATE' ? <NumeratorForm /> : <div className="text-center p-8 text-slate-400">Asignación de numeradores...</div>}
-                    <div className="mt-6 flex justify-end">
-                        <button className="flex items-center px-6 py-2 bg-success text-white rounded-lg hover:bg-green-600 shadow-md">
-                            <Save size={18} className="mr-2"/> Guardar
-                        </button>
-                    </div>
-                </div>
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                <NumeratorManager />
             </div>
         );
 
@@ -914,7 +1038,7 @@ export default function MasterData() {
                 setActiveTab(tab.id as Tab);
                 if(tab.id === 'PARAMS') setActiveSubTab('PARAM_REGIONS');
                 if(tab.id === 'WAREHOUSES') setActiveSubTab('WH_CREATE');
-                if(tab.id === 'NUMERATORS') setActiveSubTab('NUM_CREATE');
+                // if(tab.id === 'NUMERATORS') setActiveSubTab('NUM_CREATE'); // No subtabs needed now
             }}
             className={`px-4 py-2 text-sm font-semibold whitespace-nowrap border-b-2 transition-colors ${
               activeTab === tab.id

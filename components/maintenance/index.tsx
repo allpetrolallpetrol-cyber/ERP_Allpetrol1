@@ -23,7 +23,7 @@ const INITIAL_ORDERS: MaintenanceOrder[] = [
 type ModuleView = 'MENU' | 'ORDERS' | 'PLANNER' | 'REQUESTS' | 'CHECKLISTS';
 
 export default function Maintenance() {
-    const { routines, updateRoutine } = useMasterData();
+    const { routines, updateRoutine, getNextId } = useMasterData();
     const [activeModule, setActiveModule] = useState<ModuleView>('MENU');
     const [orders, setOrders] = useState<MaintenanceOrder[]>(INITIAL_ORDERS);
     const location = useLocation();
@@ -81,9 +81,12 @@ export default function Maintenance() {
     };
 
     const handleQuickCorrectiveOrder = (assetId: string, description: string) => {
+        // Use the Work Request Numerator for quick orders from checklists
+        const number = getNextId('WORK_REQUEST');
+
         const order: MaintenanceOrder = {
             id: `REQ-${Date.now()}`,
-            number: `AVISO-${Math.floor(Math.random()*1000)}`,
+            number: number,
             assetId,
             description,
             type: MaintenanceType.CORRECTIVE,

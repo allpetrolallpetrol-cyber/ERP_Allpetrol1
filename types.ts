@@ -17,6 +17,18 @@ export interface User {
   profile: string;
 }
 
+// System Configuration
+export type DocumentType = 'RFQ' | 'PURCHASE_ORDER' | 'MAINTENANCE_ORDER' | 'WORK_REQUEST' | 'STOCK_MOVEMENT';
+
+export interface Numerator {
+    id: string;
+    name: string; // Descripción interna (ej: Numerador OTs Planta A)
+    prefix: string; // Ej: "OT-24-"
+    currentValue: number; // Ej: 100
+    length: number; // Ej: 4 (para generar 0100)
+    assignedType: DocumentType; // Vinculación funcional
+}
+
 // Commercial Configuration
 export interface ApprovalRule {
     id: string;

@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, ReactNode } from 'react';
-import { ApprovalRule, Material, Asset, AssetType, MaintenanceRoutine, ChecklistModel, ChecklistExecution } from '../types';
+import { ApprovalRule, Material, Asset, AssetType, MaintenanceRoutine, ChecklistModel, ChecklistExecution, Numerator, DocumentType } from '../types';
 
 // Define types for our lists
 interface Supplier {
@@ -20,11 +20,12 @@ interface MasterDataContextType {
   suppliers: Supplier[];
   materials: Material[]; 
   assets: Asset[]; 
-  routines: MaintenanceRoutine[]; // Added PM Routines
-  checklistModels: ChecklistModel[]; // Added Checklist Models
-  checklistExecutions: ChecklistExecution[]; // Added Checklist Reports
+  routines: MaintenanceRoutine[]; 
+  checklistModels: ChecklistModel[]; 
+  checklistExecutions: ChecklistExecution[]; 
   users: {id: string, name: string, role: string}[]; 
   approvalRules: ApprovalRule[];
+  numerators: Numerator[]; // Added Numerators
 
   addRegion: (val: string) => void;
   addUom: (val: string) => void;
@@ -34,12 +35,17 @@ interface MasterDataContextType {
   addMaterial: (val: Material) => void; 
   addAsset: (val: Asset) => void; 
   addRoutine: (val: MaintenanceRoutine) => void; 
-  updateRoutine: (val: MaintenanceRoutine) => void; // New function
+  updateRoutine: (val: MaintenanceRoutine) => void; 
   addChecklistModel: (val: ChecklistModel) => void; 
   updateChecklistModel: (val: ChecklistModel) => void; 
-  addChecklistExecution: (val: ChecklistExecution) => void; // New function
+  addChecklistExecution: (val: ChecklistExecution) => void; 
   addApprovalRule: (rule: ApprovalRule) => void;
   deleteApprovalRule: (id: string) => void;
+  
+  // Numerator Functions
+  addNumerator: (num: Numerator) => void;
+  updateNumerator: (num: Numerator) => void;
+  getNextId: (type: DocumentType) => string; // The core function
 }
 
 const MasterDataContext = createContext<MasterDataContextType | undefined>(undefined);
@@ -187,6 +193,14 @@ export const MasterDataProvider = ({ children }: { children?: ReactNode }) => {
     { id: 'RULE-2', minAmount: 100001, maxAmount: 999999999, approverId: 'USR-002' } // Gerente approves big
   ]);
 
+  // Numerators State (Initial Setup)
+  const [numerators, setNumerators] = useState<Numerator[]>([
+      { id: 'NUM-001', name: 'Orden de Compra General', prefix: 'OC-', currentValue: 100, length: 6, assignedType: 'PURCHASE_ORDER' },
+      { id: 'NUM-002', name: 'Petición de Oferta (RFQ)', prefix: 'RFQ-', currentValue: 50, length: 4, assignedType: 'RFQ' },
+      { id: 'NUM-003', name: 'Orden Mantenimiento', prefix: 'OT-', currentValue: 1000, length: 6, assignedType: 'MAINTENANCE_ORDER' },
+      { id: 'NUM-004', name: 'Aviso de Avería', prefix: 'AVISO-', currentValue: 500, length: 4, assignedType: 'WORK_REQUEST' },
+  ]);
+
   const addRegion = (val: string) => setRegions(prev => [...prev, val]);
   const addUom = (val: string) => setUoms(prev => [...prev, val]);
   const addMachineType = (val: string) => setMachineTypes(prev => [...prev, val]);
@@ -206,6 +220,32 @@ export const MasterDataProvider = ({ children }: { children?: ReactNode }) => {
   const addApprovalRule = (rule: ApprovalRule) => setApprovalRules(prev => [...prev, rule]);
   const deleteApprovalRule = (id: string) => setApprovalRules(prev => prev.filter(r => r.id !== id));
 
+  // Numerator Logic
+  const addNumerator = (num: Numerator) => setNumerators(prev => [...prev, num]);
+  const updateNumerator = (num: Numerator) => setNumerators(prev => prev.map(n => n.id === num.id ? num : n));
+  
+  const getNextId = (type: DocumentType): string => {
+      // Find the numerator for this type
+      const numIndex = numerators.findIndex(n => n.assignedType === type);
+      
+      if (numIndex === -1) {
+          // Fallback if no numerator is configured
+          return `${type}-${Date.now().toString().slice(-6)}`;
+      }
+
+      const num = numerators[numIndex];
+      const nextVal = num.currentValue + 1;
+      
+      // Update state
+      const updatedNum = { ...num, currentValue: nextVal };
+      const newNumerators = [...numerators];
+      newNumerators[numIndex] = updatedNum;
+      setNumerators(newNumerators);
+
+      // Return formatted string
+      return `${num.prefix}${String(nextVal).padStart(num.length, '0')}`;
+  };
+
   return (
     <MasterDataContext.Provider value={{
       regions,
@@ -221,6 +261,7 @@ export const MasterDataProvider = ({ children }: { children?: ReactNode }) => {
       checklistExecutions,
       users,
       approvalRules,
+      numerators,
       addRegion,
       addUom,
       addMachineType,
@@ -234,7 +275,10 @@ export const MasterDataProvider = ({ children }: { children?: ReactNode }) => {
       updateChecklistModel,
       addChecklistExecution,
       addApprovalRule,
-      deleteApprovalRule
+      deleteApprovalRule,
+      addNumerator,
+      updateNumerator,
+      getNextId
     }}>
       {children}
     </MasterDataContext.Provider>
