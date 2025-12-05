@@ -1,16 +1,23 @@
-/// <reference types="vite/client" />
 import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 
-// Configuración usando variables de entorno (Best Practice para Vercel)
-// Estas variables deben definirse en el archivo .env.local (local) y en Vercel Settings (producción)
+// Helper para leer variables de entorno de forma segura o usar fallback
+const getEnv = (key: string, fallback: string) => {
+  try {
+    // @ts-ignore
+    return import.meta.env?.[key] || fallback;
+  } catch {
+    return fallback;
+  }
+};
+
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID
+  apiKey: getEnv("VITE_FIREBASE_API_KEY", "AIzaSyAGY6r4CPE3M8BDKpxW0VVYoj68wm828Tc"),
+  authDomain: getEnv("VITE_FIREBASE_AUTH_DOMAIN", "erpallpetrol.firebaseapp.com"),
+  projectId: getEnv("VITE_FIREBASE_PROJECT_ID", "erpallpetrol"),
+  storageBucket: getEnv("VITE_FIREBASE_STORAGE_BUCKET", "erpallpetrol.firebasestorage.app"),
+  messagingSenderId: getEnv("VITE_FIREBASE_MESSAGING_SENDER_ID", "176469163178"),
+  appId: getEnv("VITE_FIREBASE_APP_ID", "1:176469163178:web:e717d09b0b0797061d24d3")
 };
 
 // Initialize Firebase

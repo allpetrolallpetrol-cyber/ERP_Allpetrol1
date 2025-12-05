@@ -58,6 +58,10 @@ interface MasterDataContextType {
   addNumerator: (num: Numerator) => void;
   updateNumerator: (num: Numerator) => void;
   getNextId: (type: DocumentType) => Promise<string>; // Changed to Promise for async DB access
+  
+  // Helper for generic clients
+  addClient: (val: any) => Promise<void>;
+  addSupplier: (val: any) => Promise<void>;
 }
 
 const MasterDataContext = createContext<MasterDataContextType | undefined>(undefined);
@@ -88,16 +92,7 @@ export const MasterDataProvider = ({ children }: { children?: ReactNode }) => {
   const [numerators, setNumerators] = useState<Numerator[]>([]);
 
   // --- HELPER: Subscribe to simple list collections ---
-  // For simple string arrays (regions, uoms), we store them as objects {value: string} in DB 
-  // or manage them as a single document with an array. 
-  // To keep it simple and scalable, we'll assume they are documents in a collection for now, 
-  // or map them from a 'parameters' collection.
   
-  // For this implementation, let's treat simple params as local defaults + DB logic if needed.
-  // To avoid complexity, I will initialize them with defaults but allow adding to a 'params' collection later.
-  // For now, I'll keep the defaults in memory to ensure the app works immediately, 
-  // BUT important entities (Assets, Materials, etc) will go to DB.
-
   useEffect(() => {
     // Defaults for UI params (could be moved to DB 'parameters' collection)
     setRegions(['Buenos Aires', 'CABA', 'Córdoba', 'Santa Fe', 'Mendoza', 'Tucumán', 'Entre Ríos']);
@@ -177,6 +172,10 @@ export const MasterDataProvider = ({ children }: { children?: ReactNode }) => {
                 { id: 'NUM-002', name: 'Petición de Oferta (RFQ)', prefix: 'RFQ-', currentValue: 50, length: 4, assignedType: 'RFQ' },
                 { id: 'NUM-003', name: 'Orden Mantenimiento', prefix: 'OT-', currentValue: 1000, length: 6, assignedType: 'MAINTENANCE_ORDER' },
                 { id: 'NUM-004', name: 'Aviso de Avería', prefix: 'AVISO-', currentValue: 500, length: 4, assignedType: 'WORK_REQUEST' },
+                // NUEVOS NUMERADORES SOLICITADOS
+                { id: 'NUM-MAT', name: 'Maestro de Materiales', prefix: '', currentValue: 2999999, length: 7, assignedType: 'MATERIAL' },
+                { id: 'NUM-SUP', name: 'Maestro de Proveedores', prefix: '', currentValue: 1399999, length: 7, assignedType: 'SUPPLIER' },
+                { id: 'NUM-CLI', name: 'Maestro de Clientes', prefix: '', currentValue: 1099999, length: 7, assignedType: 'CLIENT' },
             ];
             defaults.forEach(n => setDoc(doc(db, 'numerators', n.id), n));
         } else {
@@ -189,17 +188,23 @@ export const MasterDataProvider = ({ children }: { children?: ReactNode }) => {
 
   // --- ACTIONS (Writes to DB) ---
 
-  const addRegion = (val: string) => setRegions(prev => [...prev, val]); // Local only for now
+  const addRegion = (val: string) => setRegions(prev => [...prev, val]); 
   const addUom = (val: string) => setUoms(prev => [...prev, val]);
   const addMachineType = (val: string) => setMachineTypes(prev => [...prev, val]);
   const addVehicleType = (val: string) => setVehicleTypes(prev => [...prev, val]);
   const addWarehouse = (val: string) => setWarehouses(prev => [...prev, val]);
   
   const addMaterial = async (val: Material) => {
-      // Use the provided ID or let Firestore generate one? 
-      // Current app uses manual IDs like MAT-001. We'll stick to document ID = object ID for consistency
       await setDoc(doc(db, 'materials', val.id), val);
   };
+
+  const addClient = async (val: any) => {
+      await setDoc(doc(db, 'clients', val.id), val);
+  }
+
+  const addSupplier = async (val: any) => {
+      await setDoc(doc(db, 'suppliers', val.id), val);
+  }
 
   const addAsset = async (val: Asset) => {
       await setDoc(doc(db, 'assets', val.id), val);
@@ -254,7 +259,7 @@ export const MasterDataProvider = ({ children }: { children?: ReactNode }) => {
       const nextVal = num.currentValue + 1;
       const formattedId = `${num.prefix}${String(nextVal).padStart(num.length, '0')}`;
 
-      // Optimistic update in DB to prevent reuse (simple version)
+      // Optimistic update in DB to prevent reuse
       try {
           await updateDoc(doc(db, 'numerators', num.id), { currentValue: nextVal });
           return formattedId;
@@ -286,6 +291,8 @@ export const MasterDataProvider = ({ children }: { children?: ReactNode }) => {
       addVehicleType,
       addWarehouse,
       addMaterial,
+      addClient,
+      addSupplier,
       addAsset,
       addRoutine,
       updateRoutine,

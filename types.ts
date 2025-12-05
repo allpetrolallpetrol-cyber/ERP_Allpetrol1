@@ -18,7 +18,7 @@ export interface User {
 }
 
 // System Configuration
-export type DocumentType = 'RFQ' | 'PURCHASE_ORDER' | 'MAINTENANCE_ORDER' | 'WORK_REQUEST' | 'STOCK_MOVEMENT';
+export type DocumentType = 'RFQ' | 'PURCHASE_ORDER' | 'MAINTENANCE_ORDER' | 'WORK_REQUEST' | 'STOCK_MOVEMENT' | 'MATERIAL' | 'SUPPLIER' | 'CLIENT';
 
 export interface Numerator {
     id: string;
@@ -131,7 +131,8 @@ export interface Asset {
 export interface Material {
   id: string;
   code: string;
-  description: string;
+  description: string; // Nombre Corto / Título
+  technicalDescription?: string; // Nueva: Descripción técnica detallada
   unitOfMeasure: string;
   stock: number;
   minStock: number;
