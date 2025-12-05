@@ -27,12 +27,12 @@ export const WorkRequestForm = ({ existingOrders, onSave, onCancel, initialData 
         );
     }, [existingOrders]);
 
-    const handleSubmit = () => {
+    const handleSubmit = async () => {
         if(!assetId || !desc) return alert("Complete los campos obligatorios");
         if(originType === 'DERIVED' && !parentOrderId) return alert("Debe seleccionar la Orden Preventiva de origen.");
 
         // Generate official Number
-        const number = getNextId('WORK_REQUEST');
+        const number = await getNextId('WORK_REQUEST');
 
         const order: MaintenanceOrder = {
             id: `REQ-${Date.now()}`,

@@ -7,7 +7,7 @@ import { QrCode, Camera, X, ArrowRight, ChevronLeft, ChevronRight, Cog, Truck, T
 
 type CheckStatus = 'PENDING' | 'OK' | 'FAIL';
 
-export const ChecklistExecution = ({ onQuickCorrectiveOrder, onBack }: { onQuickCorrectiveOrder: (assetId: string, description: string) => void, onBack: () => void }) => {
+export const ChecklistExecution = ({ onQuickCorrectiveOrder, onBack }: { onQuickCorrectiveOrder: (assetId: string, description: string) => Promise<void>, onBack: () => void }) => {
     const { assets, checklistModels, checklistExecutions, addChecklistExecution } = useMasterData();
     
     // Steps: IDENTIFY (Main Screen with History), SELECT_MODEL, EXECUTE
@@ -202,7 +202,7 @@ export const ChecklistExecution = ({ onQuickCorrectiveOrder, onBack }: { onQuick
         setCorrectiveModalOpen(true);
     };
 
-    const confirmCorrectiveOrder = () => {
+    const confirmCorrectiveOrder = async () => {
         if (!identifiedAsset || !correctiveItemData) return;
         if (!correctiveDescription.trim()) {
             alert("Debe describir la falla detectada.");
@@ -210,17 +210,22 @@ export const ChecklistExecution = ({ onQuickCorrectiveOrder, onBack }: { onQuick
         }
 
         const fullDesc = `[FALLA CHECKLIST] ${correctiveItemData.label}\nObservación: ${correctiveDescription}`;
-        onQuickCorrectiveOrder(identifiedAsset.id, fullDesc);
-        
-        handleCommentChange(correctiveItemData.id, correctiveDescription);
+        try {
+            await onQuickCorrectiveOrder(identifiedAsset.id, fullDesc);
+            
+            handleCommentChange(correctiveItemData.id, correctiveDescription);
 
-        setCorrectiveModalOpen(false);
-        setCorrectiveItemData(null);
-        setCorrectiveDescription('');
-        alert("Aviso de Avería generado correctamente. Puede continuar con el checklist.");
+            setCorrectiveModalOpen(false);
+            setCorrectiveItemData(null);
+            setCorrectiveDescription('');
+            alert("Aviso de Avería generado correctamente. Puede continuar con el checklist.");
+        } catch (e) {
+            console.error(e);
+            alert("Error al generar el aviso.");
+        }
     };
 
-    const handleFinish = () => {
+    const handleFinish = async () => {
         const model = checklistModels.find(m => m.id === selectedModelId);
         if (!model || !identifiedAsset) return;
 
@@ -257,16 +262,21 @@ export const ChecklistExecution = ({ onQuickCorrectiveOrder, onBack }: { onQuick
                 globalStatus,
                 items: savedItems
             };
-            addChecklistExecution(execution);
-
-            alert("Checklist finalizado y guardado exitosamente.");
-            setStep('IDENTIFY');
-            setIdentifiedAsset(null);
-            setAssetInput('');
-            setSelectedModelId('');
-            setResults({});
-            // Reset Date Filter to today (Local) to show the new one immediately
-            setHistoryDate(getLocalDateStr(new Date()));
+            
+            try {
+                await addChecklistExecution(execution);
+                alert("Checklist finalizado y guardado exitosamente.");
+                setStep('IDENTIFY');
+                setIdentifiedAsset(null);
+                setAssetInput('');
+                setSelectedModelId('');
+                setResults({});
+                // Reset Date Filter to today (Local) to show the new one immediately
+                setHistoryDate(getLocalDateStr(new Date()));
+            } catch (e) {
+                console.error(e);
+                alert("Error al guardar inspección.");
+            }
         }
     };
 
@@ -352,172 +362,152 @@ export const ChecklistExecution = ({ onQuickCorrectiveOrder, onBack }: { onQuick
                     <div className="flex flex-col md:flex-row gap-4 items-start">
                         {/* Camera Area */}
                         {isScanning ? (
-                            <div className="w-full md:w-64 aspect-video bg-black rounded-lg overflow-hidden relative flex items-center justify-center">
+                            <div className="relative w-full md:w-1/3 aspect-video bg-black rounded-lg overflow-hidden border-2 border-accent">
                                 <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover"></video>
-                                <button onClick={stopCamera} className="absolute top-2 right-2 bg-red-600 text-white p-1 rounded-full"><X size={16}/></button>
-                                <button onClick={simulateScan} className="absolute bottom-2 bg-white/90 text-slate-900 text-xs px-2 py-1 rounded">Simular</button>
+                                <button onClick={stopCamera} className="absolute top-2 right-2 bg-white/80 p-1 rounded-full"><X size={16}/></button>
+                                <div className="absolute inset-0 border-2 border-white/50 m-8 rounded pointer-events-none animate-pulse"></div>
                             </div>
                         ) : (
-                             <button 
-                                onClick={startCamera}
-                                className="w-full md:w-auto px-6 py-4 border-2 border-dashed border-slate-300 rounded-lg flex flex-col items-center justify-center text-slate-500 hover:bg-slate-50 hover:border-slate-400 transition-colors"
-                            >
-                                <Camera size={24} className="mb-1"/>
-                                <span className="text-sm font-medium">Escanear QR</span>
+                            <button onClick={startCamera} className="w-full md:w-1/3 aspect-video bg-slate-100 rounded-lg flex flex-col items-center justify-center text-slate-500 hover:bg-slate-200 transition-colors border-2 border-dashed border-slate-300">
+                                <Camera size={32} className="mb-2"/>
+                                <span className="text-sm font-medium">Escanear QR Equipo</span>
                             </button>
                         )}
 
-                        {/* Input Area */}
-                        <div className="flex-1 w-full">
-                            <label className="block text-sm font-medium text-slate-700 mb-1">Ingrese Código o Patente del Activo</label>
-                            <div className="flex gap-2">
-                                <div className="relative flex-1">
+                        {/* Manual Input Area */}
+                        <div className="flex-1 w-full space-y-4">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 mb-1">Ingreso Manual (Código / Patente)</label>
+                                <div className="flex gap-2">
                                     <input 
-                                        className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-lg text-lg focus:ring-2 focus:ring-accent outline-none bg-white text-slate-900 shadow-sm"
+                                        className="flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-accent outline-none" 
                                         placeholder="Ej. TR-01"
                                         value={assetInput}
-                                        onChange={e => setAssetInput(e.target.value)}
-                                        onKeyDown={e => e.key === 'Enter' && handleIdentify()}
+                                        onChange={(e) => setAssetInput(e.target.value)}
+                                        onKeyDown={(e) => e.key === 'Enter' && handleIdentify()}
                                     />
-                                    <Search className="absolute left-3 top-4 text-slate-400" size={20}/>
+                                    <button onClick={handleIdentify} className="bg-slate-800 text-white px-4 rounded-lg font-medium hover:bg-slate-700">
+                                        Identificar
+                                    </button>
                                 </div>
-                                <button onClick={handleIdentify} className="bg-slate-900 text-white px-6 rounded-lg font-bold hover:bg-slate-800 shadow-md">
-                                    <ArrowRight size={24} />
-                                </button>
                             </div>
-                            <p className="text-xs text-slate-500 mt-2">
-                                Ingrese el código manual si la cámara no está disponible.
-                            </p>
+                            <div className="p-3 bg-blue-50 text-blue-800 text-xs rounded-lg border border-blue-100 flex items-center">
+                                <Siren size={16} className="mr-2 flex-shrink-0"/>
+                                <span>Si detecta una falla crítica, el sistema le permitirá generar un Aviso de Mantenimiento automático.</span>
+                            </div>
+                            {/* Dev Helper */}
+                            <button onClick={simulateScan} className="text-xs text-slate-400 underline hover:text-slate-600">Simular Escaneo (Dev)</button>
                         </div>
                     </div>
                 </div>
 
-                {/* BOTTOM: HISTORY & REPORTS */}
+                {/* BOTTOM: HISTORY LIST */}
                 <div className="flex-1 bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col overflow-hidden animate-in slide-in-from-bottom-4">
-                    <div className="p-4 border-b border-slate-200 bg-slate-50 flex flex-col md:flex-row justify-between items-center gap-4">
-                        <h3 className="font-bold text-slate-800 flex items-center">
-                            <FileText className="mr-2 text-slate-500"/> Historial de Reportes
-                        </h3>
+                    <div className="p-4 border-b border-slate-200 bg-slate-50 flex flex-wrap gap-4 justify-between items-center">
+                        <h4 className="font-bold text-slate-700 flex items-center"><ClipboardCheck className="mr-2 text-slate-500"/> Historial de Inspecciones</h4>
                         
-                        <div className="flex gap-2 w-full md:w-auto">
-                            {/* Date Filter */}
+                        <div className="flex gap-2">
                             <div className="relative">
+                                <Calendar size={14} className="absolute left-2.5 top-2.5 text-slate-400"/>
                                 <input 
-                                    type="date"
-                                    className="pl-8 pr-3 py-1.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-accent outline-none bg-white"
+                                    type="date" 
+                                    className="pl-8 pr-2 py-1.5 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:ring-1 focus:ring-accent"
                                     value={historyDate}
                                     onChange={(e) => setHistoryDate(e.target.value)}
                                 />
-                                <Calendar className="absolute left-2.5 top-2 text-slate-400" size={14}/>
                             </div>
-                            
-                            {/* Text Filter */}
-                            <div className="relative flex-1 md:flex-none">
+                            <div className="relative">
+                                <Search size={14} className="absolute left-2.5 top-2.5 text-slate-400"/>
                                 <input 
                                     type="text" 
                                     placeholder="Buscar activo..." 
-                                    className="w-full md:w-48 pl-8 pr-3 py-1.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-accent outline-none bg-white"
+                                    className="pl-8 pr-2 py-1.5 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:ring-1 focus:ring-accent w-32 md:w-48"
                                     value={historySearch}
                                     onChange={(e) => setHistorySearch(e.target.value)}
                                 />
-                                <Search className="absolute left-2.5 top-2 text-slate-400" size={14}/>
                             </div>
-                            
-                            {/* Clear Filters */}
-                            {(historyDate || historySearch) && (
-                                <button 
-                                    onClick={() => { setHistoryDate(''); setHistorySearch(''); }}
-                                    className="text-slate-400 hover:text-slate-600 p-1"
-                                    title="Limpiar filtros"
-                                >
-                                    <X size={18}/>
-                                </button>
-                            )}
                         </div>
                     </div>
 
-                    <div className="flex-1 overflow-auto">
-                        <table className="w-full text-sm text-left">
-                            <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200 sticky top-0">
-                                <tr>
-                                    <th className="p-3">Hora</th>
-                                    <th className="p-3">Activo</th>
-                                    <th className="p-3 hidden md:table-cell">Modelo</th>
-                                    <th className="p-3 text-center">Estado</th>
-                                    <th className="p-3 text-right"></th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100">
-                                {filteredHistory.length > 0 ? filteredHistory.map(exec => (
-                                    <tr key={exec.id} className="hover:bg-slate-50 transition-colors group">
-                                        <td className="p-3 text-slate-600 font-mono">
-                                            {new Date(exec.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                                            <div className="text-[10px] text-slate-400 md:hidden">{new Date(exec.timestamp).toLocaleDateString()}</div>
-                                        </td>
-                                        <td className="p-3 font-medium text-slate-800">
-                                            {exec.assetName}
-                                            <div className="text-[10px] text-slate-400 md:hidden">{exec.modelName}</div>
-                                        </td>
-                                        <td className="p-3 text-slate-500 hidden md:table-cell">{exec.modelName}</td>
-                                        <td className="p-3 text-center">
-                                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                                                exec.globalStatus === 'PASS' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                                            }`}>
-                                                {exec.globalStatus === 'PASS' ? 'OK' : 'Falla'}
-                                            </span>
-                                        </td>
-                                        <td className="p-3 text-right">
-                                            <button onClick={() => setSelectedHistoryItem(exec)} className="text-accent hover:bg-blue-50 p-1.5 rounded-lg transition-colors" title="Ver Detalle">
-                                                <Eye size={18} />
-                                            </button>
-                                        </td>
-                                    </tr>
-                                )) : (
+                    <div className="flex-1 overflow-auto p-0">
+                        {filteredHistory.length > 0 ? (
+                            <table className="w-full text-left text-sm">
+                                <thead className="bg-slate-100 text-slate-500 font-semibold sticky top-0">
                                     <tr>
-                                        <td colSpan={5} className="p-8 text-center text-slate-400 italic">
-                                            No se encontraron reportes para {historyDate ? 'esta fecha' : 'los filtros aplicados'}.
-                                        </td>
+                                        <th className="p-3">Hora</th>
+                                        <th className="p-3">Activo</th>
+                                        <th className="p-3">Modelo Checklist</th>
+                                        <th className="p-3 text-center">Resultado</th>
+                                        <th className="p-3 text-right">Acción</th>
                                     </tr>
-                                )}
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                    {filteredHistory.map(exec => (
+                                        <tr key={exec.id} className="hover:bg-slate-50 transition-colors">
+                                            <td className="p-3 text-slate-500 font-mono">{new Date(exec.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</td>
+                                            <td className="p-3 font-medium text-slate-800">{exec.assetName}</td>
+                                            <td className="p-3 text-slate-600 truncate max-w-[150px]" title={exec.modelName}>{exec.modelName}</td>
+                                            <td className="p-3 text-center">
+                                                <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-bold ${exec.globalStatus === 'PASS' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                                    {exec.globalStatus === 'PASS' ? 'OK' : 'FALLA'}
+                                                </span>
+                                            </td>
+                                            <td className="p-3 text-right">
+                                                <button onClick={() => setSelectedHistoryItem(exec)} className="text-accent hover:underline font-medium">Ver</button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        ) : (
+                            <div className="h-full flex flex-col items-center justify-center text-slate-400 p-8">
+                                <FileText size={48} className="mb-4 text-slate-200"/>
+                                <p>No hay inspecciones registradas en esta fecha.</p>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
         );
     }
 
-    // 3. Select Model View
+    // 3. Select Model
     if (step === 'SELECT_MODEL') {
         return (
-            <div className="max-w-2xl mx-auto bg-white p-6 rounded-xl shadow-lg border border-slate-200 mt-10 animate-in fade-in">
-                <button onClick={() => setStep('IDENTIFY')} className="mb-4 text-slate-400 hover:text-slate-700 flex items-center"><ChevronLeft size={16} className="mr-1"/> Cambiar Activo</button>
+            <div className="max-w-2xl mx-auto w-full animate-in fade-in">
+                <button onClick={() => { setStep('IDENTIFY'); setIdentifiedAsset(null); }} className="text-slate-500 hover:text-slate-800 flex items-center mb-4 font-medium"><ChevronLeft size={20} className="mr-1"/> Cambiar Activo</button>
                 
-                <div className="flex items-center gap-4 mb-6 border-b border-slate-100 pb-4">
-                    <div className="bg-blue-50 p-3 rounded-lg">
-                        {identifiedAsset?.type === AssetType.MACHINE ? <Cog size={32} className="text-blue-600"/> : <Truck size={32} className="text-blue-600"/>}
-                    </div>
-                    <div>
-                        <h3 className="text-xl font-bold text-slate-800">{identifiedAsset?.name}</h3>
-                        <p className="text-sm text-slate-500">{identifiedAsset?.code} • {identifiedAsset?.brand} {identifiedAsset?.model}</p>
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 mb-6">
+                    <h3 className="text-lg font-bold text-slate-800 mb-2">Activo Identificado</h3>
+                    <div className="flex items-center p-3 bg-slate-50 rounded-lg border border-slate-200">
+                        <div className="bg-slate-200 p-2 rounded mr-3">
+                            {identifiedAsset?.type === AssetType.MACHINE ? <Cog size={24} className="text-slate-600"/> : <Truck size={24} className="text-slate-600"/>}
+                        </div>
+                        <div>
+                            <p className="font-bold text-slate-800 text-lg">{identifiedAsset?.name}</p>
+                            <p className="text-slate-500 text-sm font-mono">{identifiedAsset?.code}</p>
+                        </div>
                     </div>
                 </div>
 
-                <h4 className="font-bold text-slate-700 mb-4">Seleccione Checklist a realizar:</h4>
-                <div className="space-y-3">
-                    {compatibleModels.map(m => (
+                <h3 className="text-md font-bold text-slate-700 mb-4">Seleccione Checklist a ejecutar:</h3>
+                <div className="grid gap-3">
+                    {compatibleModels.map(model => (
                         <button 
-                            key={m.id}
-                            onClick={() => handleSelectModel(m.id)}
-                            className="w-full text-left p-4 rounded-xl border border-slate-200 hover:border-accent hover:shadow-md transition-all flex justify-between items-center group bg-slate-50 hover:bg-white"
+                            key={model.id} 
+                            onClick={() => handleSelectModel(model.id)}
+                            className="bg-white p-4 rounded-xl border border-slate-200 hover:border-accent hover:shadow-md transition-all text-left flex justify-between items-center group"
                         >
-                            <span className="font-semibold text-slate-700 group-hover:text-accent">{m.name}</span>
-                            <ChevronRight size={20} className="text-slate-300 group-hover:text-accent" />
+                            <div>
+                                <h4 className="font-bold text-slate-800">{model.name}</h4>
+                                <p className="text-sm text-slate-500">{model.items.length} puntos de control</p>
+                            </div>
+                            <ChevronRight className="text-slate-300 group-hover:text-accent" />
                         </button>
                     ))}
                     {compatibleModels.length === 0 && (
-                        <div className="text-center py-8 text-slate-400 italic bg-slate-50 rounded-xl border border-dashed border-slate-200">
-                            No hay modelos de checklist configurados para este tipo de activo ({identifiedAsset?.type} - {identifiedAsset?.subtype}).
+                        <div className="p-8 text-center bg-slate-100 rounded-xl border border-dashed border-slate-300 text-slate-500">
+                            No hay modelos de checklist definidos para este tipo de activo ({identifiedAsset?.type} - {identifiedAsset?.subtype}).
                         </div>
                     )}
                 </div>
@@ -525,142 +515,107 @@ export const ChecklistExecution = ({ onQuickCorrectiveOrder, onBack }: { onQuick
         );
     }
 
-    // 4. Execution View (Checklist Form)
-    const model = checklistModels.find(m => m.id === selectedModelId);
-    
+    // 4. Execution View
     return (
-        <div className="relative max-w-3xl mx-auto">
-            {/* Main Checklist UI */}
-            <div className="bg-white rounded-xl shadow-lg border border-slate-200 mt-6 flex flex-col h-[calc(100vh-150px)] animate-in slide-in-from-right-8">
-                {/* Header */}
-                <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50 rounded-t-xl">
-                    <div>
-                        <h3 className="font-bold text-slate-800">{model?.name}</h3>
-                        <p className="text-xs text-slate-500">Inspeccionando: <b>{identifiedAsset?.name}</b> ({identifiedAsset?.code})</p>
-                    </div>
-                    <button onClick={() => setStep('SELECT_MODEL')} className="text-slate-400 hover:text-slate-700"><X size={24}/></button>
+        <div className="h-full flex flex-col animate-in slide-in-from-right-8">
+            {/* Header */}
+            <div className="bg-white p-4 border-b border-slate-200 flex justify-between items-center shadow-sm z-10">
+                <div>
+                    <h3 className="font-bold text-slate-800">{identifiedAsset?.name}</h3>
+                    <p className="text-xs text-slate-500">{checklistModels.find(m => m.id === selectedModelId)?.name}</p>
                 </div>
+                <button onClick={() => setStep('SELECT_MODEL')} className="text-sm text-red-500 font-medium">Cancelar</button>
+            </div>
 
-                {/* Scrollable Items */}
-                <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
-                    {model?.items.map((item, idx) => {
-                        const res = results[item.id];
-                        const status = res?.status || 'PENDING';
-                        const isCriticalFail = item.isCritical && status === 'FAIL';
+            {/* List */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50">
+                {checklistModels.find(m => m.id === selectedModelId)?.items.map((item, idx) => {
+                    const status = results[item.id]?.status || 'PENDING';
+                    const comment = results[item.id]?.comment || '';
 
-                        return (
-                            <div key={item.id} className={`p-4 rounded-xl border-2 transition-all ${isCriticalFail ? 'border-red-200 bg-red-50' : 'border-slate-100 bg-white'}`}>
-                                <div className="flex justify-between items-start mb-3">
-                                    <div className="flex-1 pr-4">
-                                        <div className="flex items-center gap-2 mb-1">
-                                            <span className="bg-slate-200 text-slate-600 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold">{idx + 1}</span>
-                                            <h4 className="font-semibold text-slate-800">{item.label}</h4>
-                                            {item.isCritical && <span className="bg-red-100 text-red-700 text-[10px] font-bold px-1.5 py-0.5 rounded border border-red-200">CRÍTICO</span>}
-                                        </div>
+                    return (
+                        <div key={item.id} className={`bg-white rounded-xl shadow-sm border transition-all ${status === 'FAIL' ? 'border-red-300 ring-1 ring-red-100' : 'border-slate-200'}`}>
+                            <div className="p-4 flex items-start justify-between">
+                                <div className="flex-1 mr-4">
+                                    <div className="flex items-center mb-1">
+                                        <span className="bg-slate-100 text-slate-500 text-xs font-bold px-2 py-0.5 rounded mr-2">#{idx + 1}</span>
+                                        {item.isCritical && <span className="bg-red-100 text-red-600 text-[10px] font-bold px-1.5 py-0.5 rounded border border-red-200 flex items-center"><AlertTriangle size={10} className="mr-1"/> CRÍTICO</span>}
                                     </div>
-                                    
-                                    {/* 3-State Toggle */}
-                                    <div 
-                                        onClick={() => handleToggle(item.id, status)}
-                                        className={`relative w-24 h-8 rounded-full cursor-pointer transition-colors shadow-inner flex items-center justify-between px-2 select-none ${
-                                            status === 'PENDING' ? 'bg-slate-200' : 
-                                            status === 'OK' ? 'bg-green-100' : 'bg-red-100'
-                                        }`}
-                                    >
-                                        <ThumbsDown size={14} className={`z-10 ${status === 'FAIL' ? 'text-red-600' : 'text-slate-400'}`} />
-                                        <Minus size={14} className={`z-10 ${status === 'PENDING' ? 'text-slate-600' : 'text-slate-300'}`} />
-                                        <ThumbsUp size={14} className={`z-10 ${status === 'OK' ? 'text-green-600' : 'text-slate-400'}`} />
-                                        
-                                        <div className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow-md transition-all duration-300 transform ${
-                                            status === 'FAIL' ? 'left-1' : 
-                                            status === 'PENDING' ? 'left-1/2 -translate-x-1/2' : 
-                                            'right-1 translate-x-0'
-                                        } ${
-                                            status === 'FAIL' ? 'border-2 border-red-500' : 
-                                            status === 'OK' ? 'border-2 border-green-500' : 'border border-slate-300'
-                                        }`}></div>
-                                    </div>
+                                    <p className="font-medium text-slate-800 leading-snug">{item.label}</p>
                                 </div>
-
-                                {/* Fail Context */}
-                                {status === 'FAIL' && (
-                                    <div className="mt-3 animate-in fade-in">
-                                        <textarea 
-                                            className={`w-full p-2 text-sm border rounded-lg outline-none focus:ring-2 bg-white ${isCriticalFail ? 'border-red-300 focus:ring-red-200' : 'border-slate-300 focus:ring-slate-200'}`}
-                                            placeholder={item.isCritical ? "Describa la falla (Obligatorio)..." : "Observaciones (opcional)..."}
-                                            value={res?.comment || ''}
-                                            onChange={(e) => handleCommentChange(item.id, e.target.value)}
-                                        />
-                                        <div className="mt-2 flex justify-end">
-                                            <button 
-                                                onClick={() => openCorrectiveModal(item.id, item.label)}
-                                                className="text-xs bg-red-600 text-white px-3 py-1.5 rounded hover:bg-red-700 flex items-center shadow-sm"
-                                            >
-                                                <Siren size={12} className="mr-1" /> Generar Aviso Correctivo
-                                            </button>
-                                        </div>
-                                    </div>
-                                )}
+                                
+                                <button 
+                                    onClick={() => handleToggle(item.id, status)}
+                                    className={`flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center transition-all shadow-sm ${
+                                        status === 'PENDING' ? 'bg-slate-100 text-slate-400 border border-slate-200' :
+                                        status === 'OK' ? 'bg-green-500 text-white shadow-green-200' :
+                                        'bg-red-500 text-white shadow-red-200'
+                                    }`}
+                                >
+                                    {status === 'PENDING' && <Minus size={24}/>}
+                                    {status === 'OK' && <ThumbsUp size={24}/>}
+                                    {status === 'FAIL' && <ThumbsDown size={24}/>}
+                                </button>
                             </div>
-                        );
-                    })}
-                </div>
 
-                {/* Footer Actions */}
-                <div className="p-6 border-t border-slate-200 bg-slate-50 rounded-b-xl flex justify-between items-center">
-                    <div className="text-sm text-slate-500">
-                        Completado: {Object.values(results).filter(r => r.status !== 'PENDING').length} / {model?.items.length}
-                    </div>
-                    <button 
-                        onClick={handleFinish}
-                        className="bg-green-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-green-700 shadow-md transition-transform active:scale-95 flex items-center"
-                    >
-                        <ClipboardCheck size={20} className="mr-2" /> Finalizar Inspección
-                    </button>
-                </div>
+                            {/* Conditional Comment / Action Area */}
+                            {(status === 'FAIL' || comment) && (
+                                <div className="px-4 pb-4 animate-in fade-in">
+                                    <textarea 
+                                        placeholder={status === 'FAIL' ? "Describa la falla (Obligatorio)..." : "Observaciones opcionales..."}
+                                        className="w-full text-sm p-3 bg-slate-50 border border-slate-200 rounded-lg focus:ring-1 focus:ring-accent outline-none resize-none"
+                                        rows={2}
+                                        value={comment}
+                                        onChange={(e) => handleCommentChange(item.id, e.target.value)}
+                                    ></textarea>
+                                    
+                                    {status === 'FAIL' && (
+                                        <button 
+                                            onClick={() => openCorrectiveModal(item.id, item.label)}
+                                            className="mt-2 w-full py-2 bg-red-50 text-red-700 text-xs font-bold rounded-lg border border-red-100 hover:bg-red-100 flex items-center justify-center transition-colors"
+                                        >
+                                            <Siren size={14} className="mr-2"/> GENERAR AVISO DE AVERÍA
+                                        </button>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    );
+                })}
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 bg-white border-t border-slate-200 z-10">
+                <button 
+                    onClick={handleFinish}
+                    className="w-full py-3.5 bg-slate-900 text-white font-bold rounded-xl shadow-lg hover:bg-slate-800 transition-transform active:scale-95 flex items-center justify-center"
+                >
+                    <CheckCircle size={20} className="mr-2"/> Finalizar Inspección
+                </button>
             </div>
 
             {/* Corrective Action Modal */}
             {correctiveModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
-                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95">
-                        <div className="bg-red-50 px-6 py-4 border-b border-red-100 flex justify-between items-center">
-                            <h4 className="text-lg font-bold text-red-800 flex items-center">
-                                <AlertTriangle className="mr-2" /> Generar Aviso de Avería
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm animate-in zoom-in-95">
+                        <div className="p-5 border-b border-slate-100">
+                            <h4 className="font-bold text-red-600 flex items-center text-lg">
+                                <Siren size={24} className="mr-2"/> Reportar Avería
                             </h4>
-                            <button onClick={() => setCorrectiveModalOpen(false)} className="text-red-400 hover:text-red-700">
-                                <X size={24} />
-                            </button>
+                            <p className="text-sm text-slate-500 mt-1">Item: {correctiveItemData?.label}</p>
                         </div>
-                        
-                        <div className="p-6 space-y-4">
-                            <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
-                                <p className="text-xs font-bold text-slate-500 uppercase">Activo</p>
-                                <p className="font-bold text-slate-800">{identifiedAsset?.name} <span className="font-normal text-slate-500">({identifiedAsset?.code})</span></p>
-                            </div>
-                            
-                            <div>
-                                <p className="text-xs font-bold text-slate-500 uppercase mb-1">Item de Falla</p>
-                                <p className="text-sm font-medium text-slate-700 p-2 bg-slate-50 border border-slate-200 rounded">{correctiveItemData?.label}</p>
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-bold text-slate-700 mb-2">Descripción del Problema</label>
-                                <textarea 
-                                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-200 outline-none bg-white h-32 text-slate-800"
-                                    placeholder="Detalle la avería, ruidos, fugas, etc..."
-                                    value={correctiveDescription}
-                                    onChange={(e) => setCorrectiveDescription(e.target.value)}
-                                    autoFocus
-                                />
-                            </div>
+                        <div className="p-5">
+                            <label className="block text-xs font-bold text-slate-700 mb-2">Descripción del Problema</label>
+                            <textarea 
+                                className="w-full border border-slate-300 rounded-lg p-3 text-sm h-32 focus:ring-2 focus:ring-red-200 outline-none"
+                                placeholder="Detalle qué está fallando..."
+                                value={correctiveDescription}
+                                onChange={e => setCorrectiveDescription(e.target.value)}
+                            ></textarea>
                         </div>
-
-                        <div className="px-6 py-4 border-t border-slate-100 flex justify-end space-x-3 bg-slate-50">
-                            <button onClick={() => setCorrectiveModalOpen(false)} className="px-4 py-2 text-slate-500 hover:text-slate-800 font-medium">Cancelar</button>
-                            <button onClick={confirmCorrectiveOrder} className="px-6 py-2 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700 shadow-md">
-                                Crear Aviso
-                            </button>
+                        <div className="p-5 border-t border-slate-100 flex gap-3">
+                            <button onClick={() => setCorrectiveModalOpen(false)} className="flex-1 py-2 text-slate-500 font-medium hover:bg-slate-50 rounded-lg">Cancelar</button>
+                            <button onClick={confirmCorrectiveOrder} className="flex-1 py-2 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700 shadow-sm">Generar Aviso</button>
                         </div>
                     </div>
                 </div>

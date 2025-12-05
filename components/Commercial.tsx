@@ -37,6 +37,8 @@ import {
 } from 'lucide-react';
 import { useMasterData } from '../contexts/MasterDataContext';
 import { RFQ, OrderStatus, RFQItem, SupplierQuote, ApprovalRule, QuoteItemDetail } from '../types';
+import { db } from '../lib/firebase';
+import { doc, setDoc, updateDoc, collection, onSnapshot, query, where } from 'firebase/firestore';
 
 // --- Sub Components ---
 
@@ -132,11 +134,14 @@ const NewRFQForm = ({ initialData, onSave, onCancel }: { initialData?: RFQ, onSa
     const uniqueSupplierIds = Array.from(new Set(items.flatMap(i => i.targetSupplierIds || [])));
     const uniqueSuppliers = suppliers.filter(s => uniqueSupplierIds.includes(s.id));
 
-    const createRFQObject = (status: OrderStatus) => {
+    const createRFQObject = async (status: OrderStatus) => {
         const selectedSupplierObjs = uniqueSuppliers.map(s => ({id: s.id, name: s.name}));
         
         // Generate ID only if it's a new record
-        const number = initialData?.number || getNextId('RFQ');
+        let number = initialData?.number;
+        if (!number) {
+            number = await getNextId('RFQ');
+        }
 
         return {
             id: initialData?.id || `RFQ-${Date.now()}`,
@@ -149,16 +154,16 @@ const NewRFQForm = ({ initialData, onSave, onCancel }: { initialData?: RFQ, onSa
         };
     };
 
-    const handleSend = () => {
+    const handleSend = async () => {
         if(items.length === 0) { alert("Debe agregar items."); return; }
-        const rfq = createRFQObject(OrderStatus.SENT);
+        const rfq = await createRFQObject(OrderStatus.SENT);
         alert(`📧 Enviando solicitudes de cotización a:\n${rfq.selectedSuppliers.map(s => s.name).join('\n')}`);
         onSave(rfq);
     };
 
-    const handleDraft = () => {
+    const handleDraft = async () => {
         if(items.length === 0) { alert("Debe agregar items."); return; }
-        const rfq = createRFQObject(OrderStatus.DRAFT);
+        const rfq = await createRFQObject(OrderStatus.DRAFT);
         onSave(rfq);
     };
 
@@ -973,26 +978,36 @@ const ApprovalSettings = () => {
 const ProcurementModule = () => {
     const { getNextId } = useMasterData();
     const [activeTab, setActiveTab] = useState<'MANAGE_RFQ' | 'APPROVAL' | 'PO_LIST' | 'SETTINGS'>('MANAGE_RFQ');
-    const [rfqs, setRfqs] = useState<RFQ[]>([]);
+    const [rfqs, setRfqs] = useState<RFQ[]>([]); // Keep local state for fast UI updates, sync via context/db would be better but this works for now
     const [showNewForm, setShowNewForm] = useState(false);
     const [draftToEdit, setDraftToEdit] = useState<RFQ | undefined>(undefined);
+
+    // FETCH RFQs FROM DB
+    useEffect(() => {
+        const q = query(collection(db, 'rfqs'));
+        const unsub = onSnapshot(q, (snap) => {
+            const data = snap.docs.map(d => ({id: d.id, ...d.data()} as RFQ));
+            // Sort by date desc
+            setRfqs(data.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+        });
+        return () => unsub();
+    }, []);
 
     // Derived counts
     const pendingApprovals = rfqs.filter(r => r.status === OrderStatus.PENDING_APPROVAL).length;
     const activeRfqs = rfqs.filter(r => [OrderStatus.DRAFT, OrderStatus.SENT, OrderStatus.QUOTED].includes(r.status)).length;
 
-    const handleCreateRFQ = (newRfq: RFQ) => {
-        // If editing, replace. If new, add.
-        const existingIndex = rfqs.findIndex(r => r.id === newRfq.id);
-        if (existingIndex >= 0) {
-            const updated = [...rfqs];
-            updated[existingIndex] = newRfq;
-            setRfqs(updated);
-        } else {
-            setRfqs([newRfq, ...rfqs]);
+    const handleCreateRFQ = async (newRfq: RFQ) => {
+        try {
+            // Check if exists to update or create
+            // Actually, for simplicity, we treat ID as doc ID
+            await setDoc(doc(db, 'rfqs', newRfq.id), newRfq);
+            setShowNewForm(false);
+            setDraftToEdit(undefined);
+        } catch (e) {
+            console.error(e);
+            alert("Error al guardar RFQ");
         }
-        setShowNewForm(false);
-        setDraftToEdit(undefined);
     };
 
     const handleEditDraft = (rfq: RFQ) => {
@@ -1000,15 +1015,15 @@ const ProcurementModule = () => {
         setShowNewForm(true);
     };
 
-    const handleUpdateRFQ = (updatedRfq: RFQ) => {
-        setRfqs(rfqs.map(r => r.id === updatedRfq.id ? updatedRfq : r));
+    const handleUpdateRFQ = async (updatedRfq: RFQ) => {
+        await updateDoc(doc(db, 'rfqs', updatedRfq.id), { ...updatedRfq });
     };
 
-    const handleSplitAdjudicate = (originalRfq: RFQ, supplierId: string, itemIds: string[], amount: number) => {
+    const handleSplitAdjudicate = async (originalRfq: RFQ, supplierId: string, itemIds: string[], amount: number) => {
         const adjudicatedItems = originalRfq.items.filter(i => itemIds.includes(i.materialId));
         
         // Generate new ID for the Purchase Order from context
-        const poNumber = getNextId('PURCHASE_ORDER');
+        const poNumber = await getNextId('PURCHASE_ORDER');
 
         const newOrder: RFQ = {
             ...originalRfq,
@@ -1029,42 +1044,38 @@ const ProcurementModule = () => {
         // 2. Update the Original RFQ (Remove adjudicated items)
         const remainingItems = originalRfq.items.filter(i => !itemIds.includes(i.materialId));
         
-        let updatedOriginal: RFQ | null = null;
-        if (remainingItems.length > 0) {
-            updatedOriginal = {
-                ...originalRfq,
-                items: remainingItems,
-            };
-        }
+        // Save New Order
+        await setDoc(doc(db, 'rfqs', newOrder.id), newOrder);
 
-        // 3. Update State
-        if (updatedOriginal) {
-            setRfqs(prev => [...prev.map(r => r.id === originalRfq.id ? updatedOriginal! : r), newOrder]);
+        if (remainingItems.length > 0) {
+            // Update original
+            await updateDoc(doc(db, 'rfqs', originalRfq.id), { items: remainingItems });
         } else {
-            // Original RFQ is fully consumed
-            setRfqs(prev => [...prev.filter(r => r.id !== originalRfq.id), newOrder]);
+            // Original RFQ is fully consumed, maybe delete or mark as closed?
+            // For now, let's just delete it to keep clean, or keep it as history. 
+            // Let's keep it but with empty items it might look weird. Ideally archive.
+            // Simplified: Delete original if empty
+            await updateDoc(doc(db, 'rfqs', originalRfq.id), { items: [] }); // Or deleteDoc
         }
 
         alert(`Items adjudicados correctamente. Se generó la orden ${poNumber} pendiente de aprobación.`);
     };
     
     // Approval Handlers
-    const handleApprove = (rfq: RFQ) => {
+    const handleApprove = async (rfq: RFQ) => {
         const approved = { ...rfq, status: OrderStatus.CONVERTED_TO_PO };
-        setRfqs(rfqs.map(r => r.id === rfq.id ? approved : r));
+        await updateDoc(doc(db, 'rfqs', rfq.id), approved);
         alert("Orden de Compra generada y enviada.");
     };
 
-    const handleRevert = (rfq: RFQ) => {
-         // Reverting a split PO is complex. For now, just set it back to Quoted but it's detached from original.
-         // A more robust system would merge it back. 
+    const handleRevert = async (rfq: RFQ) => {
          const reverted = { 
              ...rfq, 
              status: OrderStatus.QUOTED, 
              winnerSupplierId: undefined, 
              quotes: rfq.quotes.map(q => ({...q, isSelected: false})) 
          };
-         setRfqs(rfqs.map(r => r.id === rfq.id ? reverted : r));
+         await updateDoc(doc(db, 'rfqs', rfq.id), reverted);
     };
 
     if(showNewForm) {

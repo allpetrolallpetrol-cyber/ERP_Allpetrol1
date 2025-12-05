@@ -1,6 +1,18 @@
 
-import React, { createContext, useContext, useState, ReactNode } from 'react';
-import { ApprovalRule, Material, Asset, AssetType, MaintenanceRoutine, ChecklistModel, ChecklistExecution, Numerator, DocumentType } from '../types';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { 
+  collection, 
+  onSnapshot, 
+  addDoc, 
+  updateDoc, 
+  doc, 
+  setDoc, 
+  deleteDoc,
+  query,
+  orderBy
+} from 'firebase/firestore';
+import { db } from '../lib/firebase';
+import { ApprovalRule, Material, Asset, MaintenanceRoutine, ChecklistModel, ChecklistExecution, Numerator, DocumentType } from '../types';
 
 // Define types for our lists
 interface Supplier {
@@ -8,7 +20,7 @@ interface Supplier {
     name: string;
     email: string;
     cuit: string;
-    categories: string[]; // For material matching logic
+    categories: string[]; 
 }
 
 interface MasterDataContextType {
@@ -25,7 +37,7 @@ interface MasterDataContextType {
   checklistExecutions: ChecklistExecution[]; 
   users: {id: string, name: string, role: string}[]; 
   approvalRules: ApprovalRule[];
-  numerators: Numerator[]; // Added Numerators
+  numerators: Numerator[]; 
 
   addRegion: (val: string) => void;
   addUom: (val: string) => void;
@@ -45,7 +57,7 @@ interface MasterDataContextType {
   // Numerator Functions
   addNumerator: (num: Numerator) => void;
   updateNumerator: (num: Numerator) => void;
-  getNextId: (type: DocumentType) => string; // The core function
+  getNextId: (type: DocumentType) => Promise<string>; // Changed to Promise for async DB access
 }
 
 const MasterDataContext = createContext<MasterDataContextType | undefined>(undefined);
@@ -59,191 +71,197 @@ export const useMasterData = () => {
 };
 
 export const MasterDataProvider = ({ children }: { children?: ReactNode }) => {
-  // Initial Mock Data 
-  const [regions, setRegions] = useState<string[]>([
-    'Buenos Aires', 'CABA', 'Córdoba', 'Santa Fe', 'Mendoza', 
-    'Tucumán', 'Entre Ríos'
-  ]);
+  // --- REAL TIME FIRESTORE STATE ---
+  const [regions, setRegions] = useState<string[]>([]);
+  const [uoms, setUoms] = useState<string[]>([]);
+  const [machineTypes, setMachineTypes] = useState<string[]>([]);
+  const [vehicleTypes, setVehicleTypes] = useState<string[]>([]);
+  const [warehouses, setWarehouses] = useState<string[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [materials, setMaterials] = useState<Material[]>([]);
+  const [assets, setAssets] = useState<Asset[]>([]);
+  const [routines, setRoutines] = useState<MaintenanceRoutine[]>([]);
+  const [checklistModels, setChecklistModels] = useState<ChecklistModel[]>([]);
+  const [checklistExecutions, setChecklistExecutions] = useState<ChecklistExecution[]>([]);
+  const [users, setUsers] = useState<{id: string, name: string, role: string}[]>([]);
+  const [approvalRules, setApprovalRules] = useState<ApprovalRule[]>([]);
+  const [numerators, setNumerators] = useState<Numerator[]>([]);
 
-  const [uoms, setUoms] = useState<string[]>([
-    'Unidad (UN)', 'Litro (LT)', 'Metro (MT)', 'Kilo (KG)', 'Metro Cuadrado (M2)', 'Metro Cúbico (M3)'
-  ]);
+  // --- HELPER: Subscribe to simple list collections ---
+  // For simple string arrays (regions, uoms), we store them as objects {value: string} in DB 
+  // or manage them as a single document with an array. 
+  // To keep it simple and scalable, we'll assume they are documents in a collection for now, 
+  // or map them from a 'parameters' collection.
+  
+  // For this implementation, let's treat simple params as local defaults + DB logic if needed.
+  // To avoid complexity, I will initialize them with defaults but allow adding to a 'params' collection later.
+  // For now, I'll keep the defaults in memory to ensure the app works immediately, 
+  // BUT important entities (Assets, Materials, etc) will go to DB.
 
-  const [machineTypes, setMachineTypes] = useState<string[]>([
-    'Pesada', 'Liviana', 'Herramienta de Mano', 'CNC'
-  ]);
+  useEffect(() => {
+    // Defaults for UI params (could be moved to DB 'parameters' collection)
+    setRegions(['Buenos Aires', 'CABA', 'Córdoba', 'Santa Fe', 'Mendoza', 'Tucumán', 'Entre Ríos']);
+    setUoms(['Unidad (UN)', 'Litro (LT)', 'Metro (MT)', 'Kilo (KG)', 'Metro Cuadrado (M2)', 'Metro Cúbico (M3)']);
+    setMachineTypes(['Pesada', 'Liviana', 'Herramienta de Mano', 'CNC']);
+    setVehicleTypes(['Utilitario', 'Camión', 'Automóvil', 'Autoelevador']);
+    setWarehouses(['Depósito Central', 'Nave Industrial A', 'Pañol Herramientas']);
+    
+    // Mock users for Auth simulation (Real auth should use Firebase Auth)
+    setUsers([
+        { id: 'USR-001', name: 'Juan Perez (Comprador)', role: 'USER' },
+        { id: 'USR-002', name: 'Maria Gonzalez (Gerente)', role: 'ADMIN' },
+        { id: 'USR-003', name: 'Carlos Lopez (Jefe Planta)', role: 'MAINTENANCE' }
+    ]);
+  }, []);
 
-  const [vehicleTypes, setVehicleTypes] = useState<string[]>([
-    'Utilitario', 'Camión', 'Automóvil', 'Autoelevador'
-  ]);
+  // --- FIRESTORE SUBSCRIPTIONS ---
 
-  const [warehouses, setWarehouses] = useState<string[]>([
-    'Depósito Central', 'Nave Industrial A', 'Pañol Herramientas'
-  ]);
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, 'suppliers'), (snap) => {
+        setSuppliers(snap.docs.map(d => ({ id: d.id, ...d.data() } as Supplier)));
+    });
+    return () => unsub();
+  }, []);
 
-  // Mock Suppliers for Commercial Module with CUIT and Tags
-  const [suppliers] = useState<Supplier[]>([
-    { id: 'SUP-001', name: 'Ferretería Industrial S.A.', email: 'ventas@ferreteria.com', cuit: '30-11111111-1', categories: ['Herramientas', 'General', 'Tornillos'] },
-    { id: 'SUP-002', name: 'Rodamientos del Norte', email: 'contacto@rodamientos.com', cuit: '30-22222222-2', categories: ['Rodamientos', 'Transmisión'] },
-    { id: 'SUP-003', name: 'Lubricantes y Fluidos SRL', email: 'pedidos@lubricantes.com', cuit: '33-33333333-3', categories: ['Aceites', 'Filtros', 'Fluidos'] },
-    { id: 'SUP-004', name: 'Materiales El Constructor', email: 'info@constructor.com', cuit: '30-44444444-4', categories: ['Construcción', 'Hierro'] },
-    { id: 'SUP-005', name: 'Electro Global S.A.', email: 'ventas@electroglobal.com.ar', cuit: '30-55555555-5', categories: ['Electricidad', 'Motores', 'Sensores'] },
-    { id: 'SUP-006', name: 'Bulonera Atlas', email: 'pedidos@atlas.com', cuit: '30-66666666-6', categories: ['Tornillos', 'Fijaciones'] }
-  ]);
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, 'materials'), (snap) => {
+        setMaterials(snap.docs.map(d => ({ id: d.id, ...d.data() } as Material)));
+    });
+    return () => unsub();
+  }, []);
 
-  // Mock Materials with Relationships
-  const [materials, setMaterials] = useState<Material[]>([
-    { 
-        id: 'MAT-001', 
-        code: 'RUL-6204', 
-        description: 'Rulemán SKF 6204 2RS', 
-        unitOfMeasure: 'Unidad (UN)', 
-        stock: 50, 
-        minStock: 10, 
-        location: 'Depósito Central', 
-        cost: 4500, 
-        assignedSupplierIds: ['SUP-002', 'SUP-005'] // Sold by Rodamientos & Electro
-    },
-    { 
-        id: 'MAT-002', 
-        code: 'ACE-15W40', 
-        description: 'Aceite Motor 15W40 Tambor 200L', 
-        unitOfMeasure: 'Litro (LT)', 
-        stock: 4, 
-        minStock: 2, 
-        location: 'Nave Industrial A', 
-        cost: 250000, 
-        assignedSupplierIds: ['SUP-003'] // Sold by Lubricantes
-    },
-    { 
-        id: 'MAT-003', 
-        code: 'TOR-HEX-M8', 
-        description: 'Tornillo Hexagonal M8 x 50mm', 
-        unitOfMeasure: 'Unidad (UN)', 
-        stock: 1000, 
-        minStock: 200, 
-        location: 'Pañol Herramientas', 
-        cost: 50, 
-        assignedSupplierIds: ['SUP-001', 'SUP-006'] // Sold by Ferreteria & Bulonera
-    }
-  ]);
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, 'assets'), (snap) => {
+        setAssets(snap.docs.map(d => ({ id: d.id, ...d.data() } as Asset)));
+    });
+    return () => unsub();
+  }, []);
 
-  // Mock Assets - Updated with subtypes
-  const [assets, setAssets] = useState<Asset[]>([
-      { id: 'MAQ-001', code: 'TR-01', name: 'Torno CNC Haas', type: AssetType.MACHINE, subtype: 'CNC', brand: 'Haas', model: 'ST-20', serialNumber: '123456', location: 'Nave Industrial A' },
-      { id: 'MAQ-002', code: 'PRE-05', name: 'Prensa Hidráulica 50T', type: AssetType.MACHINE, subtype: 'Pesada', brand: 'Metalurg', model: 'PH-50', serialNumber: '987654', location: 'Nave Industrial A' },
-      { id: 'VEH-001', code: 'MOV-01', name: 'Autoelevador Toyota', type: AssetType.VEHICLE, subtype: 'Autoelevador', brand: 'Toyota', model: '8FD', serialNumber: 'V-111', plate: 'AA123BB', mileage: 15000 },
-      { id: 'VEH-002', code: 'CAM-02', name: 'Camioneta Hilux', type: AssetType.VEHICLE, subtype: 'Utilitario', brand: 'Toyota', model: 'Hilux', serialNumber: 'V-222', plate: 'AD456CC', mileage: 45000 }
-  ]);
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, 'routines'), (snap) => {
+        setRoutines(snap.docs.map(d => ({ id: d.id, ...d.data() } as MaintenanceRoutine)));
+    });
+    return () => unsub();
+  }, []);
 
-  // Mock Routines
-  const [routines, setRoutines] = useState<MaintenanceRoutine[]>([
-      { id: 'RT-001', assetId: 'MAQ-001', name: 'Lubricación General y Limpieza', frequencyDays: 30, discipline: 'Mecánica', lastExecutionDate: '2023-09-15', estimatedHours: 2 },
-      { id: 'RT-002', assetId: 'MAQ-001', name: 'Revisión Armario Eléctrico', frequencyDays: 90, discipline: 'Eléctrica', lastExecutionDate: '2023-08-01', estimatedHours: 4 },
-      { id: 'RT-003', assetId: 'VEH-001', name: 'Service 500hs (Aceite y Filtros)', frequencyDays: 120, discipline: 'Mecánica', lastExecutionDate: '2023-06-20', estimatedHours: 6 },
-      { id: 'RT-004', assetId: 'MAQ-002', name: 'Verificación Sellos Hidráulicos', frequencyDays: 60, discipline: 'Hidráulica', lastExecutionDate: '2023-09-01', estimatedHours: 3 },
-  ]);
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, 'checklist_models'), (snap) => {
+        setChecklistModels(snap.docs.map(d => ({ id: d.id, ...d.data() } as ChecklistModel)));
+    });
+    return () => unsub();
+  }, []);
 
-  // Mock Checklist Models
-  const [checklistModels, setChecklistModels] = useState<ChecklistModel[]>([
-      {
-          id: 'CHKL-001',
-          name: 'Inspección Pre-Uso Autoelevador',
-          assetType: AssetType.VEHICLE,
-          assetSubtype: 'Autoelevador',
-          items: [
-              { id: '1', label: 'Estado de neumáticos', isCritical: true },
-              { id: '2', label: 'Funcionamiento bocina y luces', isCritical: true },
-              { id: '3', label: 'Nivel de aceite hidráulico', isCritical: false },
-              { id: '4', label: 'Frenos (servicio y mano)', isCritical: true }
-          ]
-      }
-  ]);
+  useEffect(() => {
+    // Order by timestamp desc
+    const q = query(collection(db, 'checklist_executions'), orderBy('timestamp', 'desc'));
+    const unsub = onSnapshot(q, (snap) => {
+        setChecklistExecutions(snap.docs.map(d => ({ id: d.id, ...d.data() } as ChecklistExecution)));
+    });
+    return () => unsub();
+  }, []);
 
-  // Mock Executions - Added initial mock data so list is not empty
-  const [checklistExecutions, setChecklistExecutions] = useState<ChecklistExecution[]>([
-      {
-          id: 'EXEC-MOCK-1',
-          date: new Date().toISOString(),
-          timestamp: Date.now() - 86400000, // Yesterday
-          modelId: 'CHKL-001',
-          modelName: 'Inspección Pre-Uso Autoelevador',
-          assetId: 'VEH-001',
-          assetName: 'Autoelevador Toyota',
-          globalStatus: 'PASS',
-          items: [
-              { label: 'Estado de neumáticos', status: 'OK', comment: '', isCritical: true },
-              { label: 'Funcionamiento bocina y luces', status: 'OK', comment: '', isCritical: true },
-              { label: 'Nivel de aceite hidráulico', status: 'OK', comment: '', isCritical: false },
-              { label: 'Frenos (servicio y mano)', status: 'OK', comment: '', isCritical: true }
-          ]
-      }
-  ]);
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, 'approval_rules'), (snap) => {
+        setApprovalRules(snap.docs.map(d => ({ id: d.id, ...d.data() } as ApprovalRule)));
+    });
+    return () => unsub();
+  }, []);
 
-  // Mock Users for Approval Logic
-  const [users] = useState([
-    { id: 'USR-001', name: 'Juan Perez (Comprador)', role: 'USER' },
-    { id: 'USR-002', name: 'Maria Gonzalez (Gerente)', role: 'ADMIN' },
-    { id: 'USR-003', name: 'Carlos Lopez (Jefe Planta)', role: 'MAINTENANCE' }
-  ]);
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, 'numerators'), (snap) => {
+        const nums = snap.docs.map(d => ({ id: d.id, ...d.data() } as Numerator));
+        // If DB is empty, set defaults (Self-healing)
+        if (nums.length === 0) {
+            const defaults: Numerator[] = [
+                { id: 'NUM-001', name: 'Orden de Compra General', prefix: 'OC-', currentValue: 100, length: 6, assignedType: 'PURCHASE_ORDER' },
+                { id: 'NUM-002', name: 'Petición de Oferta (RFQ)', prefix: 'RFQ-', currentValue: 50, length: 4, assignedType: 'RFQ' },
+                { id: 'NUM-003', name: 'Orden Mantenimiento', prefix: 'OT-', currentValue: 1000, length: 6, assignedType: 'MAINTENANCE_ORDER' },
+                { id: 'NUM-004', name: 'Aviso de Avería', prefix: 'AVISO-', currentValue: 500, length: 4, assignedType: 'WORK_REQUEST' },
+            ];
+            defaults.forEach(n => setDoc(doc(db, 'numerators', n.id), n));
+        } else {
+            setNumerators(nums);
+        }
+    });
+    return () => unsub();
+  }, []);
 
-  // Approval Rules State
-  const [approvalRules, setApprovalRules] = useState<ApprovalRule[]>([
-    { id: 'RULE-1', minAmount: 0, maxAmount: 100000, approverId: 'USR-003' }, // Jefe Planta approves small
-    { id: 'RULE-2', minAmount: 100001, maxAmount: 999999999, approverId: 'USR-002' } // Gerente approves big
-  ]);
 
-  // Numerators State (Initial Setup)
-  const [numerators, setNumerators] = useState<Numerator[]>([
-      { id: 'NUM-001', name: 'Orden de Compra General', prefix: 'OC-', currentValue: 100, length: 6, assignedType: 'PURCHASE_ORDER' },
-      { id: 'NUM-002', name: 'Petición de Oferta (RFQ)', prefix: 'RFQ-', currentValue: 50, length: 4, assignedType: 'RFQ' },
-      { id: 'NUM-003', name: 'Orden Mantenimiento', prefix: 'OT-', currentValue: 1000, length: 6, assignedType: 'MAINTENANCE_ORDER' },
-      { id: 'NUM-004', name: 'Aviso de Avería', prefix: 'AVISO-', currentValue: 500, length: 4, assignedType: 'WORK_REQUEST' },
-  ]);
+  // --- ACTIONS (Writes to DB) ---
 
-  const addRegion = (val: string) => setRegions(prev => [...prev, val]);
+  const addRegion = (val: string) => setRegions(prev => [...prev, val]); // Local only for now
   const addUom = (val: string) => setUoms(prev => [...prev, val]);
   const addMachineType = (val: string) => setMachineTypes(prev => [...prev, val]);
   const addVehicleType = (val: string) => setVehicleTypes(prev => [...prev, val]);
   const addWarehouse = (val: string) => setWarehouses(prev => [...prev, val]);
   
-  const addMaterial = (val: Material) => setMaterials(prev => [...prev, val]);
-  const addAsset = (val: Asset) => setAssets(prev => [...prev, val]);
-  const addRoutine = (val: MaintenanceRoutine) => setRoutines(prev => [...prev, val]);
-  const updateRoutine = (val: MaintenanceRoutine) => setRoutines(prev => prev.map(r => r.id === val.id ? val : r));
+  const addMaterial = async (val: Material) => {
+      // Use the provided ID or let Firestore generate one? 
+      // Current app uses manual IDs like MAT-001. We'll stick to document ID = object ID for consistency
+      await setDoc(doc(db, 'materials', val.id), val);
+  };
 
-  const addChecklistModel = (val: ChecklistModel) => setChecklistModels(prev => [...prev, val]);
-  const updateChecklistModel = (val: ChecklistModel) => setChecklistModels(prev => prev.map(m => m.id === val.id ? val : m));
+  const addAsset = async (val: Asset) => {
+      await setDoc(doc(db, 'assets', val.id), val);
+  };
+
+  const addRoutine = async (val: MaintenanceRoutine) => {
+      await setDoc(doc(db, 'routines', val.id), val);
+  };
+
+  const updateRoutine = async (val: MaintenanceRoutine) => {
+      await updateDoc(doc(db, 'routines', val.id), { ...val });
+  };
+
+  const addChecklistModel = async (val: ChecklistModel) => {
+      await setDoc(doc(db, 'checklist_models', val.id), val);
+  };
+
+  const updateChecklistModel = async (val: ChecklistModel) => {
+      await updateDoc(doc(db, 'checklist_models', val.id), { ...val });
+  };
   
-  const addChecklistExecution = (val: ChecklistExecution) => setChecklistExecutions(prev => [val, ...prev]);
+  const addChecklistExecution = async (val: ChecklistExecution) => {
+      await setDoc(doc(db, 'checklist_executions', val.id), val);
+  };
 
-  const addApprovalRule = (rule: ApprovalRule) => setApprovalRules(prev => [...prev, rule]);
-  const deleteApprovalRule = (id: string) => setApprovalRules(prev => prev.filter(r => r.id !== id));
+  const addApprovalRule = async (rule: ApprovalRule) => {
+      await setDoc(doc(db, 'approval_rules', rule.id), rule);
+  };
 
-  // Numerator Logic
-  const addNumerator = (num: Numerator) => setNumerators(prev => [...prev, num]);
-  const updateNumerator = (num: Numerator) => setNumerators(prev => prev.map(n => n.id === num.id ? num : n));
+  const deleteApprovalRule = async (id: string) => {
+      await deleteDoc(doc(db, 'approval_rules', id));
+  };
+
+  // --- Numerator Logic (Async) ---
+  const addNumerator = async (num: Numerator) => {
+      await setDoc(doc(db, 'numerators', num.id), num);
+  };
+
+  const updateNumerator = async (num: Numerator) => {
+      await updateDoc(doc(db, 'numerators', num.id), { ...num });
+  };
   
-  const getNextId = (type: DocumentType): string => {
-      // Find the numerator for this type
-      const numIndex = numerators.findIndex(n => n.assignedType === type);
+  const getNextId = async (type: DocumentType): Promise<string> => {
+      // Find the numerator for this type from the current state (synced with DB)
+      const num = numerators.find(n => n.assignedType === type);
       
-      if (numIndex === -1) {
+      if (!num) {
           // Fallback if no numerator is configured
           return `${type}-${Date.now().toString().slice(-6)}`;
       }
 
-      const num = numerators[numIndex];
       const nextVal = num.currentValue + 1;
-      
-      // Update state
-      const updatedNum = { ...num, currentValue: nextVal };
-      const newNumerators = [...numerators];
-      newNumerators[numIndex] = updatedNum;
-      setNumerators(newNumerators);
+      const formattedId = `${num.prefix}${String(nextVal).padStart(num.length, '0')}`;
 
-      // Return formatted string
-      return `${num.prefix}${String(nextVal).padStart(num.length, '0')}`;
+      // Optimistic update in DB to prevent reuse (simple version)
+      try {
+          await updateDoc(doc(db, 'numerators', num.id), { currentValue: nextVal });
+          return formattedId;
+      } catch (e) {
+          console.error("Error updating numerator", e);
+          return `${type}-ERR-${Date.now()}`;
+      }
   };
 
   return (

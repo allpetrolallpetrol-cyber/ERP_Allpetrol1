@@ -46,15 +46,18 @@ export const PMPlanner = ({ onGenerateOrders, onCancel }: { onGenerateOrders: (n
         }
     };
 
-    const handleGenerate = () => {
+    const handleGenerate = async () => {
         if (selectedRoutineIds.length === 0) return;
 
-        const newOrders: MaintenanceOrder[] = selectedRoutineIds.map(rid => {
+        const newOrders: MaintenanceOrder[] = [];
+        
+        // Process sequentially to get distinct IDs if needed (though getNextId handles this via atomic increments hopefully)
+        // With simple implementation, sequential await is safer to ensure numbering doesn't race too much on client side
+        for (const rid of selectedRoutineIds) {
             const routine = plannedRoutines.find(r => r.id === rid)!;
-            // Use Next ID Generator for Maintenance Order
-            const number = getNextId('MAINTENANCE_ORDER');
-
-            return {
+            const number = await getNextId('MAINTENANCE_ORDER');
+            
+            newOrders.push({
                 id: `PM-${Date.now()}-${Math.floor(Math.random()*1000)}`,
                 number: number,
                 assetId: routine.assetId,
@@ -67,8 +70,8 @@ export const PMPlanner = ({ onGenerateOrders, onCancel }: { onGenerateOrders: (n
                 assignedMaterials: [],
                 origin: 'ROUTINE',
                 routineId: routine.id
-            };
-        });
+            });
+        }
 
         onGenerateOrders(newOrders);
     };

@@ -11,21 +11,17 @@ import { WorkRequestForm } from './WorkRequestForm';
 import { ChecklistExecution } from './ChecklistExecution';
 import { OrderDetailModal } from './OrderDetailModal';
 import { ChecklistReport } from './ChecklistReport';
+import { db } from '../../lib/firebase';
+import { collection, onSnapshot, setDoc, doc, updateDoc, query, orderBy } from 'firebase/firestore';
 
 const TODAY = new Date().toISOString().split('T')[0];
-const INITIAL_ORDERS: MaintenanceOrder[] = [
-  { id: '1', number: 'OT-2023-001', assetId: 'MAQ-001', description: 'Ruido en rulemanes', type: MaintenanceType.CORRECTIVE, status: MaintenanceStatus.PENDING, priority: 'High', reportedDate: '2023-10-25', assignedMaterials: [], origin: 'MANUAL' },
-  { id: '2', number: 'OT-2023-002', assetId: 'AA-123-BB', description: 'Cambio de aceite y filtros', type: MaintenanceType.PREVENTIVE, status: MaintenanceStatus.PLANNED, priority: 'Medium', reportedDate: '2023-10-26', plannedDate: TODAY, assignedMaterials: [{materialId: 'MAT-OIL', quantity: 2}], origin: 'ROUTINE' },
-  { id: '3', number: 'OT-2023-003', assetId: 'MAQ-004', description: 'Ajuste de bancada', type: MaintenanceType.CORRECTIVE, status: MaintenanceStatus.IN_PROGRESS, priority: 'Low', reportedDate: '2023-10-27', assignedMaterials: [], origin: 'MANUAL' },
-  { id: '4', number: 'OT-2023-004', assetId: 'MAQ-002', description: 'Revisión mensual eléctrica', type: MaintenanceType.PREVENTIVE, status: MaintenanceStatus.CLOSED, priority: 'Medium', reportedDate: '2023-10-20', closedDate: '2023-10-21', assignedMaterials: [], origin: 'ROUTINE' },
-];
 
 type ModuleView = 'MENU' | 'ORDERS' | 'PLANNER' | 'REQUESTS' | 'CHECKLISTS';
 
 export default function Maintenance() {
     const { routines, updateRoutine, getNextId } = useMasterData();
     const [activeModule, setActiveModule] = useState<ModuleView>('MENU');
-    const [orders, setOrders] = useState<MaintenanceOrder[]>(INITIAL_ORDERS);
+    const [orders, setOrders] = useState<MaintenanceOrder[]>([]);
     const location = useLocation();
     
     // Global Selection State
@@ -37,6 +33,18 @@ export default function Maintenance() {
     // Data passing for checklist -> corrective
     const [requestInitialData, setRequestInitialData] = useState<{assetId: string, description: string} | undefined>(undefined);
 
+    // FETCH ORDERS FROM DB
+    useEffect(() => {
+        // Query Maintenance Orders. We might want to filter active ones for speed, but for now grab all.
+        // Assuming 'maintenance_orders' collection
+        const q = query(collection(db, 'maintenance_orders'), orderBy('reportedDate', 'desc'));
+        const unsub = onSnapshot(q, (snap) => {
+            const data = snap.docs.map(d => ({id: d.id, ...d.data()} as MaintenanceOrder));
+            setOrders(data);
+        });
+        return () => unsub();
+    }, []);
+
     // Reset view when clicking the sidebar link
     useEffect(() => {
         if (location.pathname === '/maintenance') {
@@ -44,16 +52,21 @@ export default function Maintenance() {
         }
     }, [location.key, location.pathname]);
 
-    const handleCreateOrders = (newOrders: MaintenanceOrder[]) => {
-        setOrders([...orders, ...newOrders]);
+    const handleCreateOrders = async (newOrders: MaintenanceOrder[]) => {
+        // Batch write preferred, but simple loop fine for now
+        for(const order of newOrders) {
+            await setDoc(doc(db, 'maintenance_orders', order.id), order);
+        }
         setActiveModule('ORDERS');
         setOrderViewMode('KANBAN');
         alert(`${newOrders.length} Órdenes generadas exitosamente.`);
     };
 
-    const handleUpdateOrder = (updatedOrder: MaintenanceOrder) => {
-        // Update local order state
-        setOrders(orders.map(o => o.id === updatedOrder.id ? updatedOrder : o));
+    const handleUpdateOrder = async (updatedOrder: MaintenanceOrder) => {
+        // Update DB
+        await updateDoc(doc(db, 'maintenance_orders', updatedOrder.id), { ...updatedOrder });
+        
+        // Update local selection if needed
         if (selectedOrder && selectedOrder.id === updatedOrder.id) {
             setSelectedOrder(updatedOrder);
         }
@@ -72,17 +85,17 @@ export default function Maintenance() {
         }
     };
 
-    const handleCreateRequest = (newOrder: MaintenanceOrder) => {
-        setOrders([...orders, newOrder]);
+    const handleCreateRequest = async (newOrder: MaintenanceOrder) => {
+        await setDoc(doc(db, 'maintenance_orders', newOrder.id), newOrder);
         // Intentionally NOT navigating away. 
         // Logic moved to WorkRequestForm to clear itself.
         setRequestInitialData(undefined);
         alert("Aviso de avería creado correctamente. Puede cargar otro si lo desea.");
     };
 
-    const handleQuickCorrectiveOrder = (assetId: string, description: string) => {
+    const handleQuickCorrectiveOrder = async (assetId: string, description: string) => {
         // Use the Work Request Numerator for quick orders from checklists
-        const number = getNextId('WORK_REQUEST');
+        const number = await getNextId('WORK_REQUEST');
 
         const order: MaintenanceOrder = {
             id: `REQ-${Date.now()}`,
@@ -96,7 +109,7 @@ export default function Maintenance() {
             assignedMaterials: [],
             origin: 'MANUAL'
         };
-        setOrders(prev => [...prev, order]);
+        await setDoc(doc(db, 'maintenance_orders', order.id), order);
     };
 
     const LandingMenu = () => (

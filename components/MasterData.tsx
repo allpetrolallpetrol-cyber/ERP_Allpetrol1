@@ -91,7 +91,7 @@ const InlineRoutineManager = ({ assetId }: { assetId: string }) => {
         setHours('');
     };
 
-    const handleSaveRoutine = () => {
+    const handleSaveRoutine = async () => {
         if (!name || !frequency || !discipline) {
             alert("Complete los campos requeridos");
             return;
@@ -110,13 +110,17 @@ const InlineRoutineManager = ({ assetId }: { assetId: string }) => {
                 : new Date().toISOString().split('T')[0]
         };
 
-        if (editingId) {
-            updateRoutine(routineData);
-        } else {
-            addRoutine(routineData);
+        try {
+            if (editingId) {
+                await updateRoutine(routineData);
+            } else {
+                await addRoutine(routineData);
+            }
+            handleCancelEdit(); // Reset form
+        } catch (e) {
+            console.error(e);
+            alert("Error al guardar rutina");
         }
-
-        handleCancelEdit(); // Reset form
     };
 
     return (
@@ -229,7 +233,7 @@ const AssetDetailView = ({ asset, onSave, onCancel }: { asset: Partial<Asset> | 
             alert("Código y Nombre son obligatorios");
             return;
         }
-        // Mock save
+        
         const savedAsset = { 
             ...formData, 
             id: formData.id || `AST-${Date.now()}` 
@@ -367,23 +371,15 @@ const AssetMasterView = () => {
         setViewMode('DETAIL');
     };
 
-    const handleSaveAsset = (asset: Asset) => {
-        // In a real app we'd check if it exists to update, or add.
-        // For mock simple logic:
-        const exists = assets.find(a => a.id === asset.id);
-        if (!exists) {
-            addAsset(asset);
-        } else {
-            // Update logic (Mock)
-            // In a real implementation with global state management (like Redux/Context), we would dispatch an update action.
-            // Since we are using a simplified context addAsset for now and checking existence:
-            // We need an updateAsset method in context, but for now we'll just alert.
-            // Actually, we can just replace the object in the list if we had setAssets, but we only have addAsset exposed.
-            // Let's assume for this demo that the user sees the update reflected locally if we managed state better.
-            alert("Activo actualizado correctamente.");
+    const handleSaveAsset = async (asset: Asset) => {
+        try {
+            await addAsset(asset);
+            setViewMode('LIST');
+            setSelectedAsset(null);
+        } catch(e) {
+            console.error(e);
+            alert("Error al guardar activo");
         }
-        setViewMode('LIST');
-        setSelectedAsset(null);
     };
 
     const filteredAssets = assets.filter(a => a.type === filterType);
@@ -463,8 +459,6 @@ const MaterialForm = ({ onSave }: { onSave: (m: any) => void }) => {
 
     const handleChange = (e: any) => setFormData({ ...formData, [e.target.name]: e.target.value });
     
-    // ... (Keep existing supplier toggle logic or simplify)
-    // Simplified for this view update:
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
              <Input label="Código" name="code" onChange={handleChange} />
@@ -674,13 +668,18 @@ const ChecklistManager = () => {
         setView('FORM');
     };
 
-    const handleSave = (m: ChecklistModel) => {
-        if (selectedModel) {
-            updateChecklistModel(m);
-        } else {
-            addChecklistModel(m);
+    const handleSave = async (m: ChecklistModel) => {
+        try {
+            if (selectedModel) {
+                await updateChecklistModel(m);
+            } else {
+                await addChecklistModel(m);
+            }
+            setView('LIST');
+        } catch (e) {
+            console.error(e);
+            alert("Error al guardar modelo");
         }
-        setView('LIST');
     };
 
     if (view === 'FORM') {
@@ -719,7 +718,7 @@ const NumeratorManager = () => {
         setCurrentValue('');
     };
 
-    const handleSave = () => {
+    const handleSave = async () => {
         if (!name || !prefix || !currentValue) {
             alert("Complete todos los campos obligatorios.");
             return;
@@ -734,12 +733,17 @@ const NumeratorManager = () => {
             assignedType
         };
 
-        if (editingId) {
-            updateNumerator(numData);
-        } else {
-            addNumerator(numData);
+        try {
+            if (editingId) {
+                await updateNumerator(numData);
+            } else {
+                await addNumerator(numData);
+            }
+            handleCancel();
+        } catch (e) {
+            console.error(e);
+            alert("Error al guardar numerador");
         }
-        handleCancel();
     };
 
     const docTypeOptions: {value: DocumentType, label: string}[] = [
@@ -873,9 +877,14 @@ export default function MasterData() {
     setNewParamValue('');
   };
 
-  const handleSaveMaterial = (data: any) => {
-    addMaterial({ id: `MAT-${Date.now()}`, stock: 0, ...data, assignedSupplierIds: [] });
-    alert("Material guardado.");
+  const handleSaveMaterial = async (data: any) => {
+    try {
+        await addMaterial({ id: `MAT-${Date.now()}`, stock: 0, ...data, assignedSupplierIds: [] });
+        alert("Material guardado.");
+    } catch(e) {
+        console.error(e);
+        alert("Error al guardar material");
+    }
   };
 
   const getParamList = () => {
