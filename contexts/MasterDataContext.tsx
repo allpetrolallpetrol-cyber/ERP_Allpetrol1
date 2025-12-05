@@ -12,7 +12,7 @@ import {
   orderBy
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { ApprovalRule, Material, Asset, MaintenanceRoutine, ChecklistModel, ChecklistExecution, Numerator, DocumentType } from '../types';
+import { ApprovalRule, Material, Asset, MaintenanceRoutine, ChecklistModel, ChecklistExecution, Numerator, DocumentType, Warehouse, WarehouseLocation } from '../types';
 
 // Define types for our lists
 interface Supplier {
@@ -28,7 +28,8 @@ interface MasterDataContextType {
   uoms: string[]; 
   machineTypes: string[];
   vehicleTypes: string[];
-  warehouses: string[]; 
+  warehouses: Warehouse[]; // Updated type
+  warehouseLocations: WarehouseLocation[]; // New type
   suppliers: Supplier[];
   materials: Material[]; 
   assets: Asset[]; 
@@ -43,7 +44,13 @@ interface MasterDataContextType {
   addUom: (val: string) => void;
   addMachineType: (val: string) => void;
   addVehicleType: (val: string) => void;
-  addWarehouse: (val: string) => void;
+  
+  // Warehouse CRUD
+  addWarehouse: (val: Warehouse) => void;
+  updateWarehouse: (val: Warehouse) => void;
+  addWarehouseLocation: (val: WarehouseLocation) => void;
+  updateWarehouseLocation: (val: WarehouseLocation) => void;
+
   addMaterial: (val: Material) => void; 
   addAsset: (val: Asset) => void; 
   addRoutine: (val: MaintenanceRoutine) => void; 
@@ -57,7 +64,7 @@ interface MasterDataContextType {
   // Numerator Functions
   addNumerator: (num: Numerator) => void;
   updateNumerator: (num: Numerator) => void;
-  getNextId: (type: DocumentType) => Promise<string>; // Changed to Promise for async DB access
+  getNextId: (type: DocumentType) => Promise<string>; 
   
   // Helper for generic clients
   addClient: (val: any) => Promise<void>;
@@ -80,7 +87,11 @@ export const MasterDataProvider = ({ children }: { children?: ReactNode }) => {
   const [uoms, setUoms] = useState<string[]>([]);
   const [machineTypes, setMachineTypes] = useState<string[]>([]);
   const [vehicleTypes, setVehicleTypes] = useState<string[]>([]);
-  const [warehouses, setWarehouses] = useState<string[]>([]);
+  
+  // Warehouse State
+  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
+  const [warehouseLocations, setWarehouseLocations] = useState<WarehouseLocation[]>([]);
+
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [materials, setMaterials] = useState<Material[]>([]);
   const [assets, setAssets] = useState<Asset[]>([]);
@@ -94,14 +105,13 @@ export const MasterDataProvider = ({ children }: { children?: ReactNode }) => {
   // --- HELPER: Subscribe to simple list collections ---
   
   useEffect(() => {
-    // Defaults for UI params (could be moved to DB 'parameters' collection)
+    // Defaults for UI params
     setRegions(['Buenos Aires', 'CABA', 'Córdoba', 'Santa Fe', 'Mendoza', 'Tucumán', 'Entre Ríos']);
     setUoms(['Unidad (UN)', 'Litro (LT)', 'Metro (MT)', 'Kilo (KG)', 'Metro Cuadrado (M2)', 'Metro Cúbico (M3)']);
     setMachineTypes(['Pesada', 'Liviana', 'Herramienta de Mano', 'CNC']);
     setVehicleTypes(['Utilitario', 'Camión', 'Automóvil', 'Autoelevador']);
-    setWarehouses(['Depósito Central', 'Nave Industrial A', 'Pañol Herramientas']);
     
-    // Mock users for Auth simulation (Real auth should use Firebase Auth)
+    // Mock users for Auth simulation
     setUsers([
         { id: 'USR-001', name: 'Juan Perez (Comprador)', role: 'USER' },
         { id: 'USR-002', name: 'Maria Gonzalez (Gerente)', role: 'ADMIN' },
@@ -110,6 +120,25 @@ export const MasterDataProvider = ({ children }: { children?: ReactNode }) => {
   }, []);
 
   // --- FIRESTORE SUBSCRIPTIONS ---
+
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, 'warehouses'), (snap) => {
+        // If empty, create default
+        if (snap.empty) {
+            const def = { id: 'WH-001', name: 'Depósito Central', responsible: 'Jefe Depósito' };
+            setDoc(doc(db, 'warehouses', def.id), def);
+        }
+        setWarehouses(snap.docs.map(d => ({ id: d.id, ...d.data() } as Warehouse)));
+    });
+    return () => unsub();
+  }, []);
+
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, 'warehouse_locations'), (snap) => {
+        setWarehouseLocations(snap.docs.map(d => ({ id: d.id, ...d.data() } as WarehouseLocation)));
+    });
+    return () => unsub();
+  }, []);
 
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'suppliers'), (snap) => {
@@ -165,14 +194,12 @@ export const MasterDataProvider = ({ children }: { children?: ReactNode }) => {
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'numerators'), (snap) => {
         const nums = snap.docs.map(d => ({ id: d.id, ...d.data() } as Numerator));
-        // If DB is empty, set defaults (Self-healing)
         if (nums.length === 0) {
             const defaults: Numerator[] = [
                 { id: 'NUM-001', name: 'Orden de Compra General', prefix: 'OC-', currentValue: 100, length: 6, assignedType: 'PURCHASE_ORDER' },
                 { id: 'NUM-002', name: 'Petición de Oferta (RFQ)', prefix: 'RFQ-', currentValue: 50, length: 4, assignedType: 'RFQ' },
                 { id: 'NUM-003', name: 'Orden Mantenimiento', prefix: 'OT-', currentValue: 1000, length: 6, assignedType: 'MAINTENANCE_ORDER' },
                 { id: 'NUM-004', name: 'Aviso de Avería', prefix: 'AVISO-', currentValue: 500, length: 4, assignedType: 'WORK_REQUEST' },
-                // NUEVOS NUMERADORES SOLICITADOS
                 { id: 'NUM-MAT', name: 'Maestro de Materiales', prefix: '', currentValue: 2999999, length: 7, assignedType: 'MATERIAL' },
                 { id: 'NUM-SUP', name: 'Maestro de Proveedores', prefix: '', currentValue: 1399999, length: 7, assignedType: 'SUPPLIER' },
                 { id: 'NUM-CLI', name: 'Maestro de Clientes', prefix: '', currentValue: 1099999, length: 7, assignedType: 'CLIENT' },
@@ -192,8 +219,23 @@ export const MasterDataProvider = ({ children }: { children?: ReactNode }) => {
   const addUom = (val: string) => setUoms(prev => [...prev, val]);
   const addMachineType = (val: string) => setMachineTypes(prev => [...prev, val]);
   const addVehicleType = (val: string) => setVehicleTypes(prev => [...prev, val]);
-  const addWarehouse = (val: string) => setWarehouses(prev => [...prev, val]);
   
+  // Warehouse Actions
+  const addWarehouse = async (val: Warehouse) => {
+      await setDoc(doc(db, 'warehouses', val.id), val);
+  };
+  const updateWarehouse = async (val: Warehouse) => {
+      await updateDoc(doc(db, 'warehouses', val.id), { ...val });
+  };
+  
+  // Location Actions
+  const addWarehouseLocation = async (val: WarehouseLocation) => {
+      await setDoc(doc(db, 'warehouse_locations', val.id), val);
+  };
+  const updateWarehouseLocation = async (val: WarehouseLocation) => {
+      await updateDoc(doc(db, 'warehouse_locations', val.id), { ...val });
+  };
+
   const addMaterial = async (val: Material) => {
       await setDoc(doc(db, 'materials', val.id), val);
   };
@@ -238,7 +280,6 @@ export const MasterDataProvider = ({ children }: { children?: ReactNode }) => {
       await deleteDoc(doc(db, 'approval_rules', id));
   };
 
-  // --- Numerator Logic (Async) ---
   const addNumerator = async (num: Numerator) => {
       await setDoc(doc(db, 'numerators', num.id), num);
   };
@@ -248,18 +289,15 @@ export const MasterDataProvider = ({ children }: { children?: ReactNode }) => {
   };
   
   const getNextId = async (type: DocumentType): Promise<string> => {
-      // Find the numerator for this type from the current state (synced with DB)
       const num = numerators.find(n => n.assignedType === type);
       
       if (!num) {
-          // Fallback if no numerator is configured
           return `${type}-${Date.now().toString().slice(-6)}`;
       }
 
       const nextVal = num.currentValue + 1;
       const formattedId = `${num.prefix}${String(nextVal).padStart(num.length, '0')}`;
 
-      // Optimistic update in DB to prevent reuse
       try {
           await updateDoc(doc(db, 'numerators', num.id), { currentValue: nextVal });
           return formattedId;
@@ -276,6 +314,7 @@ export const MasterDataProvider = ({ children }: { children?: ReactNode }) => {
       machineTypes,
       vehicleTypes,
       warehouses,
+      warehouseLocations,
       suppliers,
       materials,
       assets,
@@ -290,6 +329,9 @@ export const MasterDataProvider = ({ children }: { children?: ReactNode }) => {
       addMachineType,
       addVehicleType,
       addWarehouse,
+      updateWarehouse,
+      addWarehouseLocation,
+      updateWarehouseLocation,
       addMaterial,
       addClient,
       addSupplier,

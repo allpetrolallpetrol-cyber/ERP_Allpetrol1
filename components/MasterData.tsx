@@ -1,8 +1,8 @@
 
-import React, { useState, useEffect } from 'react';
-import { Plus, Save, Trash2, Edit2, Search, List, MapPin, Ruler, Tag, Hash, CheckSquare, X, CheckCircle, CalendarClock, Cog, Truck, Settings, ArrowLeft, AlertTriangle, FileDigit, Users } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Plus, Save, Trash2, Edit2, Search, List, MapPin, Ruler, Tag, Hash, CheckSquare, X, CheckCircle, CalendarClock, Cog, Truck, Settings, ArrowLeft, AlertTriangle, FileDigit, Users, Eye, Package } from 'lucide-react';
 import { useMasterData } from '../contexts/MasterDataContext';
-import { Material, MaintenanceRoutine, AssetType, Asset, ChecklistModel, ChecklistItemDefinition, Numerator, DocumentType } from '../types';
+import { Material, MaintenanceRoutine, AssetType, Asset, ChecklistModel, ChecklistItemDefinition, Numerator, DocumentType, Warehouse, WarehouseLocation } from '../types';
 
 // --- Reusable UI Components ---
 
@@ -247,11 +247,13 @@ const InlineRoutineManager = ({ assetId }: { assetId: string }) => {
 const AssetDetailView = ({ asset, onSave, onCancel }: { asset: Partial<Asset> | null, onSave: (a: Asset) => void, onCancel: () => void }) => {
     const { machineTypes, warehouses, vehicleTypes } = useMasterData();
     const isNew = !asset?.id;
-    const isMachine = asset?.type === AssetType.MACHINE || !asset?.type; // Default to machine if undefined
     
     // Local state for form
     const [formData, setFormData] = useState<Partial<Asset>>(asset || { type: AssetType.MACHINE });
     const [activeTab, setActiveTab] = useState<'INFO' | 'ROUTINES'>('INFO');
+
+    // Mapped Warehouse Options for Select
+    const warehouseOptions = useMemo(() => warehouses.map(w => ({ value: w.name, label: w.name })), [warehouses]);
 
     const handleChange = (field: keyof Asset, value: any) => {
         setFormData(prev => ({ ...prev, [field]: value }));
@@ -337,7 +339,7 @@ const AssetDetailView = ({ asset, onSave, onCancel }: { asset: Partial<Asset> | 
                                     />
                                     <Select 
                                         label="Ubicación Física" 
-                                        options={warehouses} 
+                                        options={warehouseOptions} 
                                         value={formData.location || ''} 
                                         onChange={(e:any) => handleChange('location', e.target.value)} 
                                     />
@@ -479,20 +481,37 @@ const AssetMasterView = () => {
     );
 };
 
-// --- Material & Warehouse Forms (kept mostly same but simplified for brevity in this refactor) ---
+// --- Material & Warehouse Forms ---
 
-const MaterialForm = ({ onSave }: { onSave: (m: any) => void }) => {
-    const { uoms, suppliers, getNextId } = useMasterData();
-    const [formData, setFormData] = useState<Partial<Material>>({ assignedSupplierIds: [] });
-    const [generatedCode, setGeneratedCode] = useState('Calculando...');
+const MaterialForm = ({ initialData, onSave, onCancel }: { initialData?: Material | null, onSave: (m: any) => void, onCancel: () => void }) => {
+    const { uoms, suppliers, warehouses, warehouseLocations, getNextId } = useMasterData();
+    const [formData, setFormData] = useState<Partial<Material>>(initialData || { assignedSupplierIds: [] });
+    const [generatedCode, setGeneratedCode] = useState(initialData?.code || 'Calculando...');
+    const [supplierSearch, setSupplierSearch] = useState('');
 
     useEffect(() => {
-        // Fetch next ID for display
-        getNextId('MATERIAL').then(id => {
-            setGeneratedCode(id);
-            setFormData(prev => ({ ...prev, code: id }));
-        });
-    }, []);
+        if (!initialData) {
+            // Fetch next ID for display only if new
+            getNextId('MATERIAL').then(id => {
+                setGeneratedCode(id);
+                setFormData(prev => ({ ...prev, code: id }));
+            });
+        }
+    }, [initialData]);
+
+    // Map Warehouses objects to options
+    const warehouseOptions = useMemo(() => warehouses.map(w => ({ value: w.name, label: w.name })), [warehouses]);
+    
+    // Filter locations based on selected warehouse name
+    const locationOptions = useMemo(() => {
+        if (!formData.warehouse) return [];
+        // Note: formData.warehouse stores the Name currently (legacy compat), ideally should store ID
+        const wh = warehouses.find(w => w.name === formData.warehouse);
+        if (!wh) return [];
+        return warehouseLocations
+            .filter(l => l.warehouseId === wh.id)
+            .map(l => ({ value: l.code, label: `${l.code} - ${l.description || ''}` }));
+    }, [formData.warehouse, warehouses, warehouseLocations]);
 
     const handleChange = (e: any) => setFormData({ ...formData, [e.target.name]: e.target.value });
     
@@ -505,74 +524,422 @@ const MaterialForm = ({ onSave }: { onSave: (m: any) => void }) => {
         }
     };
 
+    // Filter suppliers based on search
+    const filteredSuppliers = useMemo(() => {
+        if(!supplierSearch) return suppliers;
+        const term = supplierSearch.toLowerCase();
+        return suppliers.filter(s => s.name.toLowerCase().includes(term) || s.cuit.includes(term));
+    }, [suppliers, supplierSearch]);
+
+    const handleSubmit = () => {
+        if (!formData.description) {
+            alert("El nombre del material es obligatorio.");
+            return;
+        }
+        onSave({...formData, code: generatedCode});
+    };
+
     return (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-             <div className="col-span-1">
-                 <Input label="Código (Automático)" name="code" value={generatedCode} disabled />
-                 <Input label="Nombre del Material" name="description" onChange={handleChange} placeholder="Ej. Rodamiento 6204 SKF" />
-                 
-                 <div className="mb-4">
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Descripción Técnica / Detalle</label>
-                    <textarea 
-                        name="technicalDescription"
-                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-accent outline-none bg-white min-h-[100px] resize-none"
-                        onChange={handleChange}
-                        placeholder="Especificaciones técnicas, medidas, material, etc."
-                    ></textarea>
+        <div className="h-full flex flex-col">
+            <div className="flex justify-between items-center mb-6">
+                <button onClick={onCancel} className="text-slate-500 hover:text-slate-800 flex items-center text-sm"><ArrowLeft size={16} className="mr-1"/> Volver a la lista</button>
+                <h3 className="text-lg font-bold text-slate-800">{initialData ? 'Editar Material' : 'Nuevo Material'}</h3>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                 <div className="col-span-1">
+                     <Input label="Código (Automático)" name="code" value={generatedCode} disabled />
+                     <Input label="Nombre del Material" name="description" value={formData.description || ''} onChange={handleChange} placeholder="Ej. Rodamiento 6204 SKF" />
+                     
+                     <div className="mb-4">
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Descripción Técnica / Detalle</label>
+                        <textarea 
+                            name="technicalDescription"
+                            className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-accent outline-none bg-white min-h-[100px] resize-none"
+                            onChange={handleChange}
+                            value={formData.technicalDescription || ''}
+                            placeholder="Especificaciones técnicas, medidas, material, etc."
+                        ></textarea>
+                     </div>
+
+                     <Select label="Unidad" name="unitOfMeasure" value={formData.unitOfMeasure || ''} options={uoms} onChange={handleChange} />
+                     
+                     <div className="grid grid-cols-2 gap-4">
+                        <Select label="Almacén Principal" name="warehouse" value={formData.warehouse || ''} options={warehouseOptions} onChange={handleChange} />
+                        {/* Conditional select if warehouse is chosen and locations exist, else text input */}
+                        {locationOptions.length > 0 ? (
+                            <Select label="Ubicación (Rack/Estante)" name="location" value={formData.location || ''} options={locationOptions} onChange={handleChange} />
+                        ) : (
+                            <Input label="Ubicación (Rack/Estante)" name="location" value={formData.location || ''} onChange={handleChange} placeholder="Ej. Estante A-01" />
+                        )}
+                     </div>
+
+                     <div className="grid grid-cols-2 gap-4">
+                         <Input label="Stock Min" name="minStock" type="number" value={formData.minStock || ''} onChange={handleChange} placeholder="10" />
+                         <Input label="Costo Estimado" name="cost" type="number" value={formData.cost || ''} onChange={handleChange} placeholder="0.00" />
+                     </div>
                  </div>
 
-                 <Select label="Unidad" name="unitOfMeasure" options={uoms} onChange={handleChange} />
-                 <div className="grid grid-cols-2 gap-4">
-                     <Input label="Stock Min" name="minStock" type="number" onChange={handleChange} placeholder="10" />
-                     <Input label="Costo Estimado" name="cost" type="number" onChange={handleChange} placeholder="0.00" />
+                 <div className="col-span-1 bg-slate-50 p-4 rounded-xl border border-slate-200 flex flex-col">
+                     <h4 className="text-sm font-bold text-slate-700 mb-2 flex items-center"><Users size={16} className="mr-2"/> Proveedores Habilitados</h4>
+                     <p className="text-xs text-slate-500 mb-3">Seleccione los proveedores que suministran este material.</p>
+                     
+                     <div className="relative mb-2">
+                        <input 
+                            type="text" 
+                            className="w-full pl-8 pr-3 py-1.5 text-sm border border-slate-300 rounded-lg outline-none focus:ring-1 focus:ring-accent"
+                            placeholder="Buscar por Nombre o CUIT..."
+                            value={supplierSearch}
+                            onChange={(e) => setSupplierSearch(e.target.value)}
+                        />
+                        <Search size={14} className="absolute left-2.5 top-2 text-slate-400"/>
+                     </div>
+
+                     <div className="flex-1 overflow-y-auto custom-scrollbar bg-white p-2 rounded border border-slate-200 max-h-[400px]">
+                         {filteredSuppliers.length > 0 ? filteredSuppliers.map(sup => (
+                             <div key={sup.id} className="flex items-center p-2 hover:bg-slate-50 rounded cursor-pointer border-b border-slate-50 last:border-0" onClick={() => toggleSupplier(sup.id)}>
+                                 <div className={`flex-shrink-0 w-4 h-4 rounded border flex items-center justify-center mr-3 transition-colors ${formData.assignedSupplierIds?.includes(sup.id) ? 'bg-accent border-accent text-white' : 'border-slate-300'}`}>
+                                     {formData.assignedSupplierIds?.includes(sup.id) && <CheckSquare size={12}/>}
+                                 </div>
+                                 <div>
+                                     <div className={`text-sm font-medium ${formData.assignedSupplierIds?.includes(sup.id) ? 'text-accent' : 'text-slate-700'}`}>{sup.name}</div>
+                                     <div className="text-xs text-slate-400">CUIT: {sup.cuit}</div>
+                                 </div>
+                             </div>
+                         )) : (
+                             <div className="p-4 text-center text-slate-400 text-xs">
+                                 No se encontraron proveedores.
+                             </div>
+                         )}
+                     </div>
+                     <div className="mt-2 text-right text-xs text-slate-500">
+                        {formData.assignedSupplierIds?.length || 0} seleccionados
+                     </div>
                  </div>
+
+                 <div className="col-span-1 md:col-span-2 flex justify-end">
+                     <button onClick={handleSubmit} className="bg-success text-white px-6 py-2 rounded-lg flex items-center shadow-md hover:bg-green-600 transition-colors">
+                         <Save size={18} className="mr-2"/> Guardar Material
+                     </button>
+                 </div>
+            </div>
+        </div>
+    );
+};
+
+const MaterialMasterView = () => {
+    const { materials, addMaterial } = useMasterData();
+    const [viewMode, setViewMode] = useState<'LIST' | 'FORM'>('LIST');
+    const [selectedMaterial, setSelectedMaterial] = useState<Material | null>(null);
+    const [searchTerm, setSearchTerm] = useState('');
+
+    const handleCreate = () => {
+        setSelectedMaterial(null);
+        setViewMode('FORM');
+    };
+
+    const handleEdit = (m: Material) => {
+        setSelectedMaterial(m);
+        setViewMode('FORM');
+    };
+
+    const handleSave = async (data: any) => {
+        try {
+            await addMaterial({ 
+                stock: 0, // Default stock if new, usually stock is handled by warehouse, but logic kept from previous form
+                ...data 
+            });
+            setViewMode('LIST');
+            setSelectedMaterial(null);
+        } catch(e) {
+            console.error(e);
+            alert("Error al guardar material");
+        }
+    };
+
+    const filteredMaterials = useMemo(() => {
+        if(!searchTerm) return materials;
+        const term = searchTerm.toLowerCase();
+        return materials.filter(m => m.code.toLowerCase().includes(term) || m.description.toLowerCase().includes(term));
+    }, [materials, searchTerm]);
+
+    if (viewMode === 'FORM') {
+        return <MaterialForm initialData={selectedMaterial} onSave={handleSave} onCancel={() => setViewMode('LIST')} />;
+    }
+
+    return (
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+             <div className="flex justify-between items-center mb-6">
+                <div>
+                    <h3 className="text-lg font-bold text-slate-800 flex items-center"><Tag size={20} className="mr-2 text-slate-500"/> Maestro de Materiales</h3>
+                    <div className="bg-yellow-50 px-2 py-1 rounded border border-yellow-200 text-xs text-yellow-800 flex items-center mt-2 w-fit">
+                        <FileDigit size={12} className="mr-1"/> Numeración automática (Rango 3xxxxxx).
+                    </div>
+                </div>
+                <button onClick={handleCreate} className="flex items-center px-4 py-2 bg-accent text-white rounded-lg hover:bg-blue-600 shadow-md transition-all">
+                    <Plus size={18} className="mr-2"/> Nuevo Material
+                </button>
              </div>
 
-             <div className="col-span-1 bg-slate-50 p-4 rounded-xl border border-slate-200">
-                 <h4 className="text-sm font-bold text-slate-700 mb-2 flex items-center"><Users size={16} className="mr-2"/> Proveedores Habilitados</h4>
-                 <p className="text-xs text-slate-500 mb-3">Seleccione los proveedores que suministran este material.</p>
-                 
-                 <div className="space-y-2 max-h-[250px] overflow-y-auto custom-scrollbar bg-white p-2 rounded border border-slate-200">
-                     {suppliers.length > 0 ? suppliers.map(sup => (
-                         <div key={sup.id} className="flex items-center p-2 hover:bg-slate-50 rounded cursor-pointer" onClick={() => toggleSupplier(sup.id)}>
-                             <div className={`w-4 h-4 rounded border flex items-center justify-center mr-3 ${formData.assignedSupplierIds?.includes(sup.id) ? 'bg-accent border-accent text-white' : 'border-slate-300'}`}>
-                                 {formData.assignedSupplierIds?.includes(sup.id) && <CheckSquare size={12}/>}
-                             </div>
-                             <div>
-                                 <div className="text-sm font-medium text-slate-700">{sup.name}</div>
-                                 <div className="text-xs text-slate-400">CUIT: {sup.cuit}</div>
-                             </div>
-                         </div>
-                     )) : (
-                         <div className="p-4 text-center text-slate-400 text-xs">
-                             No hay proveedores registrados. Cree uno en la pestaña Proveedores.
-                         </div>
-                     )}
-                 </div>
+             <div className="mb-4 relative">
+                <input 
+                    type="text" 
+                    placeholder="Buscar por código o nombre..." 
+                    className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-accent"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                />
+                <Search size={18} className="absolute left-3 top-2.5 text-slate-400" />
              </div>
 
-             <div className="col-span-1 md:col-span-2 flex justify-end">
-                 <button onClick={() => onSave({...formData, code: generatedCode})} className="bg-success text-white px-6 py-2 rounded-lg flex items-center shadow-md hover:bg-green-600 transition-colors">
-                     <Save size={18} className="mr-2"/> Guardar Material
-                 </button>
+             <div className="overflow-hidden border border-slate-200 rounded-lg">
+                <table className="w-full text-left text-sm">
+                    <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
+                        <tr>
+                            <th className="px-4 py-3">Código</th>
+                            <th className="px-4 py-3">Nombre</th>
+                            <th className="px-4 py-3">Ubicación</th>
+                            <th className="px-4 py-3">Unidad</th>
+                            <th className="px-4 py-3 text-right">Stock Min</th>
+                            <th className="px-4 py-3 text-right">Costo Est.</th>
+                            <th className="px-4 py-3 text-right">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                        {filteredMaterials.map(mat => (
+                            <tr key={mat.id} className="hover:bg-slate-50 group">
+                                <td className="px-4 py-3 font-mono text-slate-600">{mat.code}</td>
+                                <td className="px-4 py-3 font-medium text-slate-800">
+                                    {mat.description}
+                                    {mat.technicalDescription && <div className="text-xs text-slate-400 truncate max-w-xs">{mat.technicalDescription}</div>}
+                                </td>
+                                <td className="px-4 py-3 text-slate-500 text-xs">
+                                    <div className="font-bold text-slate-700">{mat.warehouse || '-'}</div>
+                                    <div className="text-slate-400">{mat.location || '-'}</div>
+                                </td>
+                                <td className="px-4 py-3 text-slate-500">{mat.unitOfMeasure}</td>
+                                <td className="px-4 py-3 text-right text-slate-600">{mat.minStock}</td>
+                                <td className="px-4 py-3 text-right text-slate-600">${mat.cost}</td>
+                                <td className="px-4 py-3 text-right">
+                                    <button onClick={() => handleEdit(mat)} className="text-accent hover:text-blue-700 font-medium flex items-center justify-end">
+                                        <Edit2 size={16} className="mr-1"/> Editar
+                                    </button>
+                                </td>
+                            </tr>
+                        ))}
+                         {filteredMaterials.length === 0 && (
+                            <tr><td colSpan={7} className="p-8 text-center text-slate-400">No hay materiales registrados con ese criterio.</td></tr>
+                        )}
+                    </tbody>
+                </table>
              </div>
         </div>
     );
 };
 
-const WarehouseForm = () => (
-    <div className="grid grid-cols-1 gap-4">
-        <Input label="Nombre del Almacén" placeholder="Ej. Depósito Central" />
-        <Input label="Responsable" placeholder="Nombre del jefe de depósito" />
-    </div>
-);
+// --- Warehouse Manager ---
 
-const LocationForm = () => {
-    const { warehouses } = useMasterData();
+const WarehouseMasterView = () => {
+    const { warehouses, addWarehouse, updateWarehouse } = useMasterData();
+    const [editingId, setEditingId] = useState<string | null>(null);
+    const [name, setName] = useState('');
+    const [responsible, setResponsible] = useState('');
+
+    const handleEdit = (w: Warehouse) => {
+        setEditingId(w.id);
+        setName(w.name);
+        setResponsible(w.responsible || '');
+    };
+
+    const handleCancel = () => {
+        setEditingId(null);
+        setName('');
+        setResponsible('');
+    };
+
+    const handleSave = async () => {
+        if(!name.trim()) return alert("El nombre es obligatorio");
+        
+        const data: Warehouse = {
+            id: editingId || `WH-${Date.now()}`,
+            name,
+            responsible
+        };
+
+        try {
+            if(editingId) await updateWarehouse(data);
+            else await addWarehouse(data);
+            handleCancel();
+        } catch(e) {
+            console.error(e);
+            alert("Error al guardar");
+        }
+    };
+
     return (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Select label="Almacén Padre" options={warehouses} />
-            <Input label="Código Ubicación" placeholder="Ej. RACK-A-01" />
+        <div className="space-y-6">
+            <SectionHeader title="Maestro de Almacenes" icon={Package} />
+            
+            {/* Form */}
+            <div className={`p-5 rounded-xl border transition-all ${editingId ? 'bg-yellow-50 border-yellow-200' : 'bg-slate-50 border-slate-200'}`}>
+                <h4 className={`text-sm font-bold mb-4 flex items-center ${editingId ? 'text-yellow-800' : 'text-slate-800'}`}>
+                    {editingId ? <Edit2 size={16} className="mr-2"/> : <Plus size={16} className="mr-2"/>} 
+                    {editingId ? 'Editar Almacén' : 'Crear Nuevo Almacén'}
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 mb-1">Nombre Almacén</label>
+                        <input className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white" placeholder="Ej. Depósito Central" value={name} onChange={e => setName(e.target.value)} />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 mb-1">Responsable</label>
+                        <input className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white" placeholder="Ej. Juan Perez" value={responsible} onChange={e => setResponsible(e.target.value)} />
+                    </div>
+                    <div className="flex gap-2">
+                        {editingId && <button onClick={handleCancel} className="px-4 py-2 bg-white border border-slate-300 text-slate-500 rounded-lg hover:bg-slate-50">Cancelar</button>}
+                        <button onClick={handleSave} className="flex-1 px-4 py-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 font-medium">Guardar</button>
+                    </div>
+                </div>
+            </div>
+
+            {/* List */}
+            <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                <table className="w-full text-sm text-left">
+                    <thead className="bg-slate-100 text-slate-600 font-semibold border-b border-slate-200">
+                        <tr>
+                            <th className="px-4 py-3">Nombre</th>
+                            <th className="px-4 py-3">Responsable</th>
+                            <th className="px-4 py-3 text-right">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                        {warehouses.map(w => (
+                            <tr key={w.id} className="hover:bg-slate-50">
+                                <td className="px-4 py-3 font-medium text-slate-800">{w.name}</td>
+                                <td className="px-4 py-3 text-slate-600">{w.responsible || '-'}</td>
+                                <td className="px-4 py-3 text-right">
+                                    <button onClick={() => handleEdit(w)} className="text-accent hover:text-blue-700 font-medium p-1">
+                                        <Edit2 size={16} />
+                                    </button>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    );
+};
+
+// --- Location Manager ---
+
+const LocationMasterView = () => {
+    const { warehouses, warehouseLocations, addWarehouseLocation, updateWarehouseLocation } = useMasterData();
+    const [editingId, setEditingId] = useState<string | null>(null);
+    const [warehouseId, setWarehouseId] = useState('');
+    const [code, setCode] = useState('');
+    const [description, setDescription] = useState('');
+
+    const handleEdit = (l: WarehouseLocation) => {
+        setEditingId(l.id);
+        setWarehouseId(l.warehouseId);
+        setCode(l.code);
+        setDescription(l.description || '');
+    };
+
+    const handleCancel = () => {
+        setEditingId(null);
+        setWarehouseId('');
+        setCode('');
+        setDescription('');
+    };
+
+    const handleSave = async () => {
+        if(!warehouseId || !code) return alert("Almacén y Código son obligatorios");
+        
+        const data: WarehouseLocation = {
+            id: editingId || `LOC-${Date.now()}`,
+            warehouseId,
+            code,
+            description
+        };
+
+        try {
+            if(editingId) await updateWarehouseLocation(data);
+            else await addWarehouseLocation(data);
+            handleCancel();
+        } catch(e) {
+            console.error(e);
+            alert("Error al guardar");
+        }
+    };
+
+    return (
+        <div className="space-y-6">
+            <SectionHeader title="Gestión de Ubicaciones" icon={MapPin} />
+            
+            {/* Form */}
+            <div className={`p-5 rounded-xl border transition-all ${editingId ? 'bg-yellow-50 border-yellow-200' : 'bg-slate-50 border-slate-200'}`}>
+                <h4 className={`text-sm font-bold mb-4 flex items-center ${editingId ? 'text-yellow-800' : 'text-slate-800'}`}>
+                    {editingId ? <Edit2 size={16} className="mr-2"/> : <Plus size={16} className="mr-2"/>} 
+                    {editingId ? 'Editar Ubicación' : 'Crear Nueva Ubicación'}
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 mb-1">Almacén Padre</label>
+                        <select className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white" value={warehouseId} onChange={e => setWarehouseId(e.target.value)}>
+                            <option value="">Seleccionar...</option>
+                            {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                        </select>
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 mb-1">Código (Rack/Fila)</label>
+                        <input className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white" placeholder="Ej. RACK-A-01" value={code} onChange={e => setCode(e.target.value)} />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 mb-1">Descripción / Notas</label>
+                        <input className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white" placeholder="Opcional" value={description} onChange={e => setDescription(e.target.value)} />
+                    </div>
+                    <div className="md:col-span-3 flex justify-end gap-2">
+                        {editingId && <button onClick={handleCancel} className="px-4 py-2 bg-white border border-slate-300 text-slate-500 rounded-lg hover:bg-slate-50">Cancelar</button>}
+                        <button onClick={handleSave} className="px-6 py-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 font-medium">Guardar Ubicación</button>
+                    </div>
+                </div>
+            </div>
+
+            {/* List */}
+            <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                <table className="w-full text-sm text-left">
+                    <thead className="bg-slate-100 text-slate-600 font-semibold border-b border-slate-200">
+                        <tr>
+                            <th className="px-4 py-3">Código</th>
+                            <th className="px-4 py-3">Almacén</th>
+                            <th className="px-4 py-3">Descripción</th>
+                            <th className="px-4 py-3 text-right">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                        {warehouseLocations.map(l => {
+                            const whName = warehouses.find(w => w.id === l.warehouseId)?.name || 'Desconocido';
+                            return (
+                                <tr key={l.id} className="hover:bg-slate-50">
+                                    <td className="px-4 py-3 font-mono font-medium text-slate-700">{l.code}</td>
+                                    <td className="px-4 py-3 text-slate-600"><span className="bg-blue-50 text-blue-700 border border-blue-100 px-2 py-0.5 rounded text-xs">{whName}</span></td>
+                                    <td className="px-4 py-3 text-slate-500">{l.description || '-'}</td>
+                                    <td className="px-4 py-3 text-right">
+                                        <button onClick={() => handleEdit(l)} className="text-accent hover:text-blue-700 font-medium p-1">
+                                            <Edit2 size={16} />
+                                        </button>
+                                    </td>
+                                </tr>
+                            )
+                        })}
+                        {warehouseLocations.length === 0 && (
+                            <tr><td colSpan={4} className="p-6 text-center text-slate-400">No hay ubicaciones creadas.</td></tr>
+                        )}
+                    </tbody>
+                </table>
+            </div>
         </div>
     );
 };
@@ -901,16 +1268,6 @@ export default function MasterData() {
     setNewParamValue('');
   };
 
-  const handleSaveMaterial = async (data: any) => {
-    try {
-        await addMaterial({ id: data.code, stock: 0, ...data });
-        alert(`Material ${data.code} guardado exitosamente.`);
-    } catch(e) {
-        console.error(e);
-        alert("Error al guardar material");
-    }
-  };
-
   const handleSaveClient = async (data: any) => {
       try {
           const id = await getNextId('CLIENT');
@@ -1024,33 +1381,20 @@ export default function MasterData() {
             <div>
                  <SubTabs 
                     tabs={[
-                        {id: 'WH_CREATE', label: 'Crear Almacén'}, 
-                        {id: 'WH_LOC', label: 'Crear / Asignar Ubicación'}
+                        {id: 'WH_CREATE', label: 'Almacenes (Depósitos)'}, 
+                        {id: 'WH_LOC', label: 'Ubicaciones'}
                     ]} 
                     current={activeSubTab} 
                     onChange={setActiveSubTab} 
                 />
                 <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                    {activeSubTab === 'WH_CREATE' ? <WarehouseForm /> : <LocationForm />}
-                    <div className="mt-6 flex justify-end">
-                        <button className="flex items-center px-6 py-2 bg-success text-white rounded-lg hover:bg-green-600 shadow-md">
-                        <Save size={18} className="mr-2"/> Guardar
-                        </button>
-                    </div>
+                    {activeSubTab === 'WH_CREATE' ? <WarehouseMasterView /> : <LocationMasterView />}
                 </div>
             </div>
         );
 
       case 'MATERIALS':
-        return (
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                <SectionHeader title="Maestro de Materiales y Repuestos" actionLabel="Nuevo Material" icon={Tag} />
-                <div className="bg-yellow-50 p-3 mb-4 rounded-lg border border-yellow-200 text-sm text-yellow-800 flex items-center">
-                    <FileDigit size={16} className="mr-2"/> La numeración se asignará automáticamente (Rango 3xxxxxx).
-                </div>
-                <MaterialForm onSave={handleSaveMaterial} />
-            </div>
-        );
+        return <MaterialMasterView />;
 
       case 'CHECKLISTS':
           return (

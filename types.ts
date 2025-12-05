@@ -128,6 +128,20 @@ export interface Asset {
   mileage?: number;
 }
 
+// Warehouse Interfaces
+export interface Warehouse {
+    id: string;
+    name: string;
+    responsible?: string;
+}
+
+export interface WarehouseLocation {
+    id: string;
+    warehouseId: string; // Parent Warehouse ID
+    code: string; // e.g. RACK-A-01
+    description?: string;
+}
+
 export interface Material {
   id: string;
   code: string;
@@ -136,7 +150,8 @@ export interface Material {
   unitOfMeasure: string;
   stock: number;
   minStock: number;
-  location: string; // Almacen/Rack
+  warehouse?: string; // Almacén principal
+  location: string; // Ubicación específica (Rack/Estante)
   cost: number;
   assignedSupplierIds: string[]; // List of IDs of suppliers who sell this material
 }
