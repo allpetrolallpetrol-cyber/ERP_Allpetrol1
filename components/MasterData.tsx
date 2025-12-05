@@ -50,6 +50,7 @@ const ClientForm = ({ type, onSave }: { type: 'CLIENT' | 'SUPPLIER', onSave: (da
       cuit: '',
       address: '',
       contactName: '',
+      email: '',
       conditionIVA: 'Responsable Inscripto',
       paymentTerms: '', // Only for Supplier
       region: ''
@@ -70,6 +71,12 @@ const ClientForm = ({ type, onSave }: { type: 'CLIENT' | 'SUPPLIER', onSave: (da
       <Input label="Razón Social" name="businessName" value={formData.businessName} onChange={handleChange} placeholder="Ej. Empresa S.A." />
       <Input label="CUIT" name="cuit" value={formData.cuit} onChange={handleChange} placeholder="XX-XXXXXXXX-X" />
       <Input label="Dirección" name="address" value={formData.address} onChange={handleChange} placeholder="Calle, Número, Localidad" />
+      
+      <div>
+        <Input label="Email(s) para Pedidos" name="email" value={formData.email} onChange={handleChange} placeholder="ventas@prov.com, juan@prov.com" />
+        <p className="text-xs text-slate-500 -mt-3 mb-3">Para múltiples destinatarios, separe las direcciones con comas.</p>
+      </div>
+
       <Input label="Contacto Principal" name="contactName" value={formData.contactName} onChange={handleChange} />
       <Select label="Condición IVA" name="conditionIVA" value={formData.conditionIVA} onChange={handleChange} options={['Responsable Inscripto', 'Monotributo', 'Exento', 'Consumidor Final']} />
       
@@ -698,6 +705,7 @@ const MaterialMasterView = () => {
                         <tr>
                             <th className="px-4 py-3">Código</th>
                             <th className="px-4 py-3">Nombre</th>
+                            <th className="px-4 py-3">Almacén</th>
                             <th className="px-4 py-3">Ubicación</th>
                             <th className="px-4 py-3">Unidad</th>
                             <th className="px-4 py-3 text-right">Stock Min</th>
@@ -713,10 +721,8 @@ const MaterialMasterView = () => {
                                     {mat.description}
                                     {mat.technicalDescription && <div className="text-xs text-slate-400 truncate max-w-xs">{mat.technicalDescription}</div>}
                                 </td>
-                                <td className="px-4 py-3 text-slate-500 text-xs">
-                                    <div className="font-bold text-slate-700">{mat.warehouse || '-'}</div>
-                                    <div className="text-slate-400">{mat.location || '-'}</div>
-                                </td>
+                                <td className="px-4 py-3 text-slate-600 font-medium">{mat.warehouse || '-'}</td>
+                                <td className="px-4 py-3 text-slate-500">{mat.location || '-'}</td>
                                 <td className="px-4 py-3 text-slate-500">{mat.unitOfMeasure}</td>
                                 <td className="px-4 py-3 text-right text-slate-600">{mat.minStock}</td>
                                 <td className="px-4 py-3 text-right text-slate-600">${mat.cost}</td>
@@ -728,7 +734,7 @@ const MaterialMasterView = () => {
                             </tr>
                         ))}
                          {filteredMaterials.length === 0 && (
-                            <tr><td colSpan={7} className="p-8 text-center text-slate-400">No hay materiales registrados con ese criterio.</td></tr>
+                            <tr><td colSpan={8} className="p-8 text-center text-slate-400">No hay materiales registrados con ese criterio.</td></tr>
                         )}
                     </tbody>
                 </table>

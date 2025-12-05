@@ -100,6 +100,7 @@ export interface Client {
   cuit: string;
   address: string;
   contactName: string;
+  email?: string; // Supports multiple emails separated by comma
   conditionIVA: string; // Resp. Inscripto, Monotributo, etc.
 }
 
