@@ -73,6 +73,7 @@ export interface SupplierQuote {
 export interface RFQ {
   id: string;
   number: string;
+  relatedRfqNumber?: string; // Trazabilidad: Número original de la RFQ si esto es una OC
   date: string;
   items: RFQItem[];
   selectedSuppliers: {id: string, name: string}[]; // Suppliers invited to quote

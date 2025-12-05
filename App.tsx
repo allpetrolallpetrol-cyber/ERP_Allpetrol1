@@ -12,9 +12,9 @@ import {
   X, 
   Bell
 } from 'lucide-react';
-import Commercial from './components/Commercial';
+import Commercial from './components/commercial/index'; // Updated import
 import MasterData from './components/MasterData';
-import Maintenance from './components/maintenance/index'; // Updated Import
+import Maintenance from './components/maintenance/index'; 
 import Warehouse from './components/Warehouse';
 import UserManagement from './components/Users';
 import { MasterDataProvider } from './contexts/MasterDataContext';

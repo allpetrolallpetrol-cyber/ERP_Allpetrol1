@@ -196,8 +196,10 @@ export const MasterDataProvider = ({ children }: { children?: ReactNode }) => {
         const nums = snap.docs.map(d => ({ id: d.id, ...d.data() } as Numerator));
         if (nums.length === 0) {
             const defaults: Numerator[] = [
-                { id: 'NUM-001', name: 'Orden de Compra General', prefix: 'OC-', currentValue: 100, length: 6, assignedType: 'PURCHASE_ORDER' },
-                { id: 'NUM-002', name: 'Petición de Oferta (RFQ)', prefix: 'RFQ-', currentValue: 50, length: 4, assignedType: 'RFQ' },
+                // Configuración OC ajustada para iniciar en 4900000000
+                { id: 'NUM-001', name: 'Orden de Compra General', prefix: '', currentValue: 4899999999, length: 10, assignedType: 'PURCHASE_ORDER' },
+                // Configuración RFQ ajustada para iniciar en 10000000
+                { id: 'NUM-002', name: 'Petición de Oferta (RFQ)', prefix: '', currentValue: 9999999, length: 8, assignedType: 'RFQ' },
                 { id: 'NUM-003', name: 'Orden Mantenimiento', prefix: 'OT-', currentValue: 1000, length: 6, assignedType: 'MAINTENANCE_ORDER' },
                 { id: 'NUM-004', name: 'Aviso de Avería', prefix: 'AVISO-', currentValue: 500, length: 4, assignedType: 'WORK_REQUEST' },
                 { id: 'NUM-MAT', name: 'Maestro de Materiales', prefix: '', currentValue: 2999999, length: 7, assignedType: 'MATERIAL' },
@@ -206,6 +208,28 @@ export const MasterDataProvider = ({ children }: { children?: ReactNode }) => {
             ];
             defaults.forEach(n => setDoc(doc(db, 'numerators', n.id), n));
         } else {
+            // Migración automática RFQ
+            const rfqNum = nums.find(n => n.id === 'NUM-002');
+            if (rfqNum && rfqNum.prefix === 'RFQ-') {
+                 console.log("Migrando Numerador RFQ al rango 10000000...");
+                 updateDoc(doc(db, 'numerators', 'NUM-002'), {
+                     prefix: '',
+                     currentValue: 9999999, 
+                     length: 8
+                 });
+            }
+
+            // Migración automática OC (Purchase Order)
+            const poNum = nums.find(n => n.id === 'NUM-001');
+            if (poNum && poNum.prefix === 'OC-') {
+                 console.log("Migrando Numerador OC al rango 4900000000...");
+                 updateDoc(doc(db, 'numerators', 'NUM-001'), {
+                     prefix: '',
+                     currentValue: 4899999999, // El próximo será 4900000000
+                     length: 10
+                 });
+            }
+
             setNumerators(nums);
         }
     });
