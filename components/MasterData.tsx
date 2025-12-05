@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Plus, Save, Trash2, Edit2, Search, List, MapPin, Ruler, Tag, Hash, CheckSquare, X, CheckCircle, CalendarClock, Cog, Truck, Settings, ArrowLeft, AlertTriangle, FileDigit, Users, Eye, Package } from 'lucide-react';
+import { Plus, Save, Trash2, Edit2, Search, List, MapPin, Ruler, Tag, Hash, CheckSquare, X, CheckCircle, CalendarClock, Cog, Truck, Settings, ArrowLeft, AlertTriangle, FileDigit, Users, Eye, Package, Briefcase, UserCircle } from 'lucide-react';
 import { useMasterData } from '../contexts/MasterDataContext';
-import { Material, MaintenanceRoutine, AssetType, Asset, ChecklistModel, ChecklistItemDefinition, Numerator, DocumentType, Warehouse, WarehouseLocation } from '../types';
+import { Material, MaintenanceRoutine, AssetType, Asset, ChecklistModel, ChecklistItemDefinition, Numerator, DocumentType, Warehouse, WarehouseLocation, Client, Supplier } from '../types';
 
 // --- Reusable UI Components ---
 
@@ -43,9 +43,9 @@ const SectionHeader = ({ title, actionLabel, onAction, icon: Icon }: any) => (
 
 // --- Forms ---
 
-const ClientForm = ({ type, onSave }: { type: 'CLIENT' | 'SUPPLIER', onSave: (data: any) => void }) => {
+const ClientForm = ({ type, initialData, onSave, onCancel }: { type: 'CLIENT' | 'SUPPLIER', initialData?: any, onSave: (data: any) => void, onCancel: () => void }) => {
   const { regions } = useMasterData();
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState(initialData || {
       businessName: '',
       cuit: '',
       address: '',
@@ -67,32 +67,233 @@ const ClientForm = ({ type, onSave }: { type: 'CLIENT' | 'SUPPLIER', onSave: (da
   };
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <Input label="Razón Social" name="businessName" value={formData.businessName} onChange={handleChange} placeholder="Ej. Empresa S.A." />
-      <Input label="CUIT" name="cuit" value={formData.cuit} onChange={handleChange} placeholder="XX-XXXXXXXX-X" />
-      <Input label="Dirección" name="address" value={formData.address} onChange={handleChange} placeholder="Calle, Número, Localidad" />
-      
-      <div>
-        <Input label="Email(s) para Pedidos" name="email" value={formData.email} onChange={handleChange} placeholder="ventas@prov.com, juan@prov.com" />
-        <p className="text-xs text-slate-500 -mt-3 mb-3">Para múltiples destinatarios, separe las direcciones con comas.</p>
-      </div>
+    <div className="h-full flex flex-col">
+        <div className="flex justify-between items-center mb-6">
+            <button onClick={onCancel} className="text-slate-500 hover:text-slate-800 flex items-center text-sm"><ArrowLeft size={16} className="mr-1"/> Volver</button>
+            <h3 className="text-lg font-bold text-slate-800">{initialData ? `Editar ${type === 'CLIENT' ? 'Cliente' : 'Proveedor'}` : `Nuevo ${type === 'CLIENT' ? 'Cliente' : 'Proveedor'}`}</h3>
+        </div>
 
-      <Input label="Contacto Principal" name="contactName" value={formData.contactName} onChange={handleChange} />
-      <Select label="Condición IVA" name="conditionIVA" value={formData.conditionIVA} onChange={handleChange} options={['Responsable Inscripto', 'Monotributo', 'Exento', 'Consumidor Final']} />
-      
-      {type === 'SUPPLIER' && (
-          <Input label="Condición de Pago" name="paymentTerms" value={formData.paymentTerms} onChange={handleChange} placeholder="Ej. 30 Días FF" />
-      )}
-      
-      <Select label="Provincia / Región" name="region" value={formData.region} onChange={handleChange} options={regions} />
-      
-      <div className="col-span-1 md:col-span-2 flex justify-end mt-4">
-        <button onClick={handleSubmit} className="flex items-center px-6 py-2 bg-success text-white rounded-lg hover:bg-green-600 shadow-md">
-            <Save size={18} className="mr-2"/> Guardar {type === 'CLIENT' ? 'Cliente' : 'Proveedor'}
-        </button>
-      </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Input label="Razón Social" name="businessName" value={formData.businessName} onChange={handleChange} placeholder="Ej. Empresa S.A." />
+            <Input label="CUIT" name="cuit" value={formData.cuit} onChange={handleChange} placeholder="XX-XXXXXXXX-X" />
+            <Input label="Dirección" name="address" value={formData.address} onChange={handleChange} placeholder="Calle, Número, Localidad" />
+            
+            <div>
+                <Input label="Email(s) para Pedidos" name="email" value={formData.email} onChange={handleChange} placeholder="ventas@prov.com, juan@prov.com" />
+                <p className="text-xs text-slate-500 -mt-3 mb-3">Para múltiples destinatarios, separe las direcciones con comas.</p>
+            </div>
+
+            <Input label="Contacto Principal" name="contactName" value={formData.contactName} onChange={handleChange} />
+            <Select label="Condición IVA" name="conditionIVA" value={formData.conditionIVA} onChange={handleChange} options={['Responsable Inscripto', 'Monotributo', 'Exento', 'Consumidor Final']} />
+            
+            {type === 'SUPPLIER' && (
+                <Input label="Condición de Pago" name="paymentTerms" value={formData.paymentTerms} onChange={handleChange} placeholder="Ej. 30 Días FF" />
+            )}
+            
+            <Select label="Provincia / Región" name="region" value={formData.region} onChange={handleChange} options={regions} />
+            
+            <div className="col-span-1 md:col-span-2 flex justify-end mt-4">
+                <button onClick={handleSubmit} className="flex items-center px-6 py-2 bg-success text-white rounded-lg hover:bg-green-600 shadow-md">
+                    <Save size={18} className="mr-2"/> Guardar {type === 'CLIENT' ? 'Cliente' : 'Proveedor'}
+                </button>
+            </div>
+        </div>
     </div>
   );
+};
+
+// --- Client & Supplier Master Views ---
+
+const ClientMasterView = () => {
+    const { clients, addClient, getNextId } = useMasterData();
+    const [viewMode, setViewMode] = useState<'LIST' | 'FORM'>('LIST');
+    const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+    const [searchTerm, setSearchTerm] = useState('');
+
+    const handleCreate = () => {
+        setSelectedClient(null);
+        setViewMode('FORM');
+    };
+
+    const handleEdit = (c: Client) => {
+        setSelectedClient(c);
+        setViewMode('FORM');
+    };
+
+    const handleSave = async (data: any) => {
+        try {
+            // Use existing ID if editing, otherwise generic/new
+            const id = selectedClient?.id || await getNextId('CLIENT');
+            await addClient({ id, ...data });
+            alert(`Cliente ${selectedClient ? 'actualizado' : 'creado'} correctamente.`);
+            setViewMode('LIST');
+        } catch (e) {
+            console.error(e);
+            alert("Error al guardar cliente");
+        }
+    };
+
+    const filteredList = useMemo(() => {
+        if(!searchTerm) return clients;
+        const term = searchTerm.toLowerCase();
+        return clients.filter(c => c.businessName.toLowerCase().includes(term) || c.cuit.includes(term));
+    }, [clients, searchTerm]);
+
+    if (viewMode === 'FORM') {
+        return <ClientForm type="CLIENT" initialData={selectedClient} onSave={handleSave} onCancel={() => setViewMode('LIST')} />;
+    }
+
+    return (
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+             <SectionHeader title="Maestro de Clientes" actionLabel="Nuevo Cliente" onAction={handleCreate} icon={UserCircle} />
+             
+             <div className="mb-4 relative">
+                <input 
+                    type="text" 
+                    placeholder="Buscar por Razón Social o CUIT..." 
+                    className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-accent"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                />
+                <Search size={18} className="absolute left-3 top-2.5 text-slate-400" />
+             </div>
+
+             <div className="overflow-hidden border border-slate-200 rounded-lg">
+                <table className="w-full text-left text-sm">
+                    <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
+                        <tr>
+                            <th className="px-4 py-3">Razón Social</th>
+                            <th className="px-4 py-3">CUIT</th>
+                            <th className="px-4 py-3">Contacto</th>
+                            <th className="px-4 py-3">Email(s)</th>
+                            <th className="px-4 py-3 text-right">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                        {filteredList.map(c => (
+                            <tr key={c.id} className="hover:bg-slate-50 group">
+                                <td className="px-4 py-3 font-medium text-slate-800">{c.businessName}</td>
+                                <td className="px-4 py-3 text-slate-600 font-mono">{c.cuit}</td>
+                                <td className="px-4 py-3 text-slate-500">{c.contactName || '-'}</td>
+                                <td className="px-4 py-3 text-slate-500 truncate max-w-[200px]" title={c.email}>{c.email || '-'}</td>
+                                <td className="px-4 py-3 text-right">
+                                    <button onClick={() => handleEdit(c)} className="text-accent hover:text-blue-700 font-medium">
+                                        <Edit2 size={16} />
+                                    </button>
+                                </td>
+                            </tr>
+                        ))}
+                         {filteredList.length === 0 && (
+                            <tr><td colSpan={5} className="p-8 text-center text-slate-400">No hay clientes registrados con ese criterio.</td></tr>
+                        )}
+                    </tbody>
+                </table>
+             </div>
+        </div>
+    );
+};
+
+const SupplierMasterView = () => {
+    const { suppliers, addSupplier, getNextId } = useMasterData();
+    const [viewMode, setViewMode] = useState<'LIST' | 'FORM'>('LIST');
+    const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
+    const [searchTerm, setSearchTerm] = useState('');
+
+    const handleCreate = () => {
+        setSelectedSupplier(null);
+        setViewMode('FORM');
+    };
+
+    const handleEdit = (s: Supplier) => {
+        setSelectedSupplier(s);
+        setViewMode('FORM');
+    };
+
+    const handleSave = async (data: any) => {
+        try {
+            const id = selectedSupplier?.id || await getNextId('SUPPLIER');
+            await addSupplier({ id, ...data });
+            alert(`Proveedor ${selectedSupplier ? 'actualizado' : 'creado'} correctamente.`);
+            setViewMode('LIST');
+        } catch (e) {
+            console.error(e);
+            alert("Error al guardar proveedor");
+        }
+    };
+
+    const filteredList = useMemo(() => {
+        if(!searchTerm) return suppliers;
+        const term = searchTerm.toLowerCase();
+        return suppliers.filter(s => s.name.toLowerCase().includes(term) || s.cuit.includes(term));
+    }, [suppliers, searchTerm]);
+
+    if (viewMode === 'FORM') {
+        // Map Supplier structure to Form structure if names differ (currently Supplier has 'name' in context types but 'businessName' in Client interface inheritance in types.ts.
+        // Checking types.ts: Supplier extends Client. Client has businessName.
+        // Checking MasterDataContext: interface Supplier defines 'name'. 
+        // Adjustment: Let's unify. The Context interface seems to use 'name' but the Type uses 'businessName'.
+        // To be safe, I'll pass data and handle any property mapping if needed, but assuming `addSupplier` handles object spread.
+        // Note: The `Supplier` type in context definition uses `name`, but the `Supplier` interface in `types.ts` uses `businessName`.
+        // I will map `name` to `businessName` for the form pre-fill to ensure consistency.
+        
+        const formInitialData = selectedSupplier ? {
+            ...selectedSupplier,
+            businessName: (selectedSupplier as any).name || selectedSupplier.businessName // Handle legacy/mismatch
+        } : null;
+
+        return <ClientForm type="SUPPLIER" initialData={formInitialData} onSave={handleSave} onCancel={() => setViewMode('LIST')} />;
+    }
+
+    return (
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+             <SectionHeader title="Maestro de Proveedores" actionLabel="Nuevo Proveedor" onAction={handleCreate} icon={Briefcase} />
+             
+             <div className="mb-4 relative">
+                <input 
+                    type="text" 
+                    placeholder="Buscar por Razón Social o CUIT..." 
+                    className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-accent"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                />
+                <Search size={18} className="absolute left-3 top-2.5 text-slate-400" />
+             </div>
+
+             <div className="overflow-hidden border border-slate-200 rounded-lg">
+                <table className="w-full text-left text-sm">
+                    <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
+                        <tr>
+                            <th className="px-4 py-3">Razón Social</th>
+                            <th className="px-4 py-3">CUIT</th>
+                            <th className="px-4 py-3">Contacto</th>
+                            <th className="px-4 py-3">Email(s)</th>
+                            <th className="px-4 py-3">Cond. Pago</th>
+                            <th className="px-4 py-3 text-right">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                        {filteredList.map(s => (
+                            <tr key={s.id} className="hover:bg-slate-50 group">
+                                <td className="px-4 py-3 font-medium text-slate-800">{(s as any).name || s.businessName}</td>
+                                <td className="px-4 py-3 text-slate-600 font-mono">{s.cuit}</td>
+                                <td className="px-4 py-3 text-slate-500">{s.contactName || '-'}</td>
+                                <td className="px-4 py-3 text-slate-500 truncate max-w-[150px]" title={s.email}>{s.email || '-'}</td>
+                                <td className="px-4 py-3 text-slate-500">{s.paymentTerms || '-'}</td>
+                                <td className="px-4 py-3 text-right">
+                                    <button onClick={() => handleEdit(s)} className="text-accent hover:text-blue-700 font-medium">
+                                        <Edit2 size={16} />
+                                    </button>
+                                </td>
+                            </tr>
+                        ))}
+                         {filteredList.length === 0 && (
+                            <tr><td colSpan={6} className="p-8 text-center text-slate-400">No hay proveedores registrados con ese criterio.</td></tr>
+                        )}
+                    </tbody>
+                </table>
+             </div>
+        </div>
+    );
 };
 
 // --- New Asset Manager Components ---
@@ -1274,28 +1475,6 @@ export default function MasterData() {
     setNewParamValue('');
   };
 
-  const handleSaveClient = async (data: any) => {
-      try {
-          const id = await getNextId('CLIENT');
-          await addClient({ id, ...data });
-          alert(`Cliente creado con ID: ${id}`);
-      } catch (e) {
-          console.error(e);
-          alert("Error al crear cliente");
-      }
-  }
-
-  const handleSaveSupplier = async (data: any) => {
-      try {
-          const id = await getNextId('SUPPLIER');
-          await addSupplier({ id, ...data });
-          alert(`Proveedor creado con ID: ${id}`);
-      } catch (e) {
-          console.error(e);
-          alert("Error al crear proveedor");
-      }
-  }
-
   const getParamList = () => {
       switch(activeSubTab) {
         case 'PARAM_REGIONS': return regions;
@@ -1309,29 +1488,12 @@ export default function MasterData() {
   const renderContent = () => {
     switch (activeTab) {
       case 'CLIENTS':
-        return (
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-            <SectionHeader title="Maestro de Clientes" />
-            <div className="bg-yellow-50 p-3 mb-4 rounded-lg border border-yellow-200 text-sm text-yellow-800 flex items-center">
-                <FileDigit size={16} className="mr-2"/> La numeración se asignará automáticamente (Rango 11xxxxxx).
-            </div>
-            <ClientForm type="CLIENT" onSave={handleSaveClient} />
-          </div>
-        );
+        return <ClientMasterView />;
       
       case 'SUPPLIERS':
-         return (
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-             <SectionHeader title="Maestro de Proveedores" />
-             <div className="bg-yellow-50 p-3 mb-4 rounded-lg border border-yellow-200 text-sm text-yellow-800 flex items-center">
-                <FileDigit size={16} className="mr-2"/> La numeración se asignará automáticamente (Rango 14xxxxxx).
-            </div>
-            <ClientForm type="SUPPLIER" onSave={handleSaveSupplier} /> 
-          </div>
-        );
+         return <SupplierMasterView />;
 
       case 'ASSETS':
-        // New Asset Management View
         return <AssetMasterView />;
 
       case 'PARAMS':

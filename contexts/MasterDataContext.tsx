@@ -12,25 +12,17 @@ import {
   orderBy
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { ApprovalRule, Material, Asset, MaintenanceRoutine, ChecklistModel, ChecklistExecution, Numerator, DocumentType, Warehouse, WarehouseLocation } from '../types';
-
-// Define types for our lists
-interface Supplier {
-    id: string;
-    name: string;
-    email: string;
-    cuit: string;
-    categories: string[]; 
-}
+import { ApprovalRule, Material, Asset, MaintenanceRoutine, ChecklistModel, ChecklistExecution, Numerator, DocumentType, Warehouse, WarehouseLocation, Client, Supplier } from '../types';
 
 interface MasterDataContextType {
   regions: string[];
   uoms: string[]; 
   machineTypes: string[];
   vehicleTypes: string[];
-  warehouses: Warehouse[]; // Updated type
-  warehouseLocations: WarehouseLocation[]; // New type
+  warehouses: Warehouse[]; 
+  warehouseLocations: WarehouseLocation[]; 
   suppliers: Supplier[];
+  clients: Client[]; // Added Clients List
   materials: Material[]; 
   assets: Asset[]; 
   routines: MaintenanceRoutine[]; 
@@ -93,6 +85,7 @@ export const MasterDataProvider = ({ children }: { children?: ReactNode }) => {
   const [warehouseLocations, setWarehouseLocations] = useState<WarehouseLocation[]>([]);
 
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [clients, setClients] = useState<Client[]>([]); // Clients State
   const [materials, setMaterials] = useState<Material[]>([]);
   const [assets, setAssets] = useState<Asset[]>([]);
   const [routines, setRoutines] = useState<MaintenanceRoutine[]>([]);
@@ -143,6 +136,13 @@ export const MasterDataProvider = ({ children }: { children?: ReactNode }) => {
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'suppliers'), (snap) => {
         setSuppliers(snap.docs.map(d => ({ id: d.id, ...d.data() } as Supplier)));
+    });
+    return () => unsub();
+  }, []);
+
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, 'clients'), (snap) => {
+        setClients(snap.docs.map(d => ({ id: d.id, ...d.data() } as Client)));
     });
     return () => unsub();
   }, []);
@@ -316,6 +316,7 @@ export const MasterDataProvider = ({ children }: { children?: ReactNode }) => {
       warehouses,
       warehouseLocations,
       suppliers,
+      clients, // Exposed
       materials,
       assets,
       routines,
