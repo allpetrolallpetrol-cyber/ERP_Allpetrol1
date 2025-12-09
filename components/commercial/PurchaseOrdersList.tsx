@@ -48,10 +48,9 @@ const generatePurchaseOrderPDF = (po: RFQ, supplierName: string, total: number) 
     doc.text(supplierName, 15, y);
     y += 6;
     doc.setFontSize(10);
-    // Placeholder info if not in object
     doc.text(`Ref. Cotización: ${winnerQuote?.quoteReference || 'S/N'}`, 15, y); 
 
-    // Right side: Dates & Conditions (Fixed Layout with spacing)
+    // Right side: Dates & Conditions (Improved Spacing)
     y = 55;
     
     // Line 1: Date
@@ -60,7 +59,7 @@ const generatePurchaseOrderPDF = (po: RFQ, supplierName: string, total: number) 
     doc.setFont("helvetica", "normal");
     doc.text(po.date, 195, y, { align: "right" });
     
-    y += 8; 
+    y += 10; // Increased vertical space (was 8)
     
     // Line 2: Payment Terms
     doc.setFont("helvetica", "bold");
@@ -68,17 +67,17 @@ const generatePurchaseOrderPDF = (po: RFQ, supplierName: string, total: number) 
     doc.setFont("helvetica", "normal");
     doc.text("30 Días FF", 195, y, { align: "right" }); 
 
-    y += 8;
+    y += 10; // Increased vertical space (was 8)
 
-    // Line 3: Origin Reference (THE REQUESTED FIELD)
+    // Line 3: Origin Reference
     doc.setFont("helvetica", "bold");
-    doc.text("REF. PETICIÓN:", 135, y);
+    doc.text("REF. RFQ / PETICIÓN:", 135, y);
     doc.setFont("helvetica", "normal");
     const refText = po.relatedRfqNumber || 'N/A';
     doc.text(refText, 195, y, { align: "right" });
 
     // --- Items Table ---
-    y = 90; // Start table lower to clear header info
+    y = 95; // Pushed down to clear header
     
     // Table Header
     doc.setFillColor(241, 245, 249); // Slate 100
@@ -93,12 +92,10 @@ const generatePurchaseOrderPDF = (po: RFQ, supplierName: string, total: number) 
     doc.setFont("helvetica", "normal");
 
     po.items.forEach((item) => {
-        // Find price in winner quote
         const quoteItem = winnerQuote?.items?.find(qi => qi.materialId === item.materialId);
         const unitPrice = quoteItem ? quoteItem.unitPrice : 0;
         const lineTotal = unitPrice * item.quantity;
 
-        // Draw Row
         doc.text(item.description, 20, y);
         doc.text(item.quantity.toString(), 130, y, { align: "center" });
         doc.text(`$${unitPrice.toLocaleString('es-AR', {minimumFractionDigits: 2})}`, 155, y, { align: "right" });
@@ -106,7 +103,6 @@ const generatePurchaseOrderPDF = (po: RFQ, supplierName: string, total: number) 
         
         y += 8;
         
-        // Page break check (simple)
         if (y > 270) {
             doc.addPage();
             y = 20;
@@ -124,7 +120,7 @@ const generatePurchaseOrderPDF = (po: RFQ, supplierName: string, total: number) 
     doc.text(`$${total.toLocaleString('es-AR', {minimumFractionDigits: 2})}`, 190, y, { align: "right" });
     
     y += 6;
-    const tax = total * 0.21; // Example 21% IVA
+    const tax = total * 0.21;
     doc.setFont("helvetica", "bold");
     doc.text("IVA (21%):", 155, y, { align: "right" });
     doc.setFont("helvetica", "normal");
@@ -139,7 +135,7 @@ const generatePurchaseOrderPDF = (po: RFQ, supplierName: string, total: number) 
     doc.text("TOTAL:", 155, y + 2, { align: "right" });
     doc.text(`$${(total + tax).toLocaleString('es-AR', {minimumFractionDigits: 2})}`, 190, y + 2, { align: "right" });
 
-    // --- Footer / Signatures ---
+    // --- Footer ---
     doc.setTextColor(0, 0, 0);
     y = 250;
     doc.setLineWidth(0.5);
@@ -297,6 +293,7 @@ export const PurchaseOrdersList = ({ rfqs }: { rfqs: RFQ[] }) => {
                     <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold">
                         <tr>
                             <th className="p-4">Nro OC</th>
+                            <th className="p-4">Ref. RFQ</th>
                             <th className="p-4">Fecha</th>
                             <th className="p-4">Proveedor</th>
                             <th className="p-4 text-right">Total</th>
@@ -310,6 +307,7 @@ export const PurchaseOrdersList = ({ rfqs }: { rfqs: RFQ[] }) => {
                             return (
                                 <tr key={po.id} className="hover:bg-slate-50 transition-colors group cursor-pointer" onClick={() => setSelectedPO(po)}>
                                     <td className="p-4 font-bold text-slate-800">{po.number}</td>
+                                    <td className="p-4 text-slate-500 font-mono">{po.relatedRfqNumber || '-'}</td>
                                     <td className="p-4 text-slate-500">{po.date}</td>
                                     <td className="p-4 font-medium text-slate-700">{winner?.supplierName}</td>
                                     <td className="p-4 text-right font-bold text-slate-900">${winner?.price.toLocaleString()}</td>
@@ -329,7 +327,7 @@ export const PurchaseOrdersList = ({ rfqs }: { rfqs: RFQ[] }) => {
                             )
                         })}
                         {filteredPOs.length === 0 && (
-                            <tr><td colSpan={6} className="p-8 text-center text-slate-400 italic">No se encontraron órdenes de compra.</td></tr>
+                            <tr><td colSpan={7} className="p-8 text-center text-slate-400 italic">No se encontraron órdenes de compra.</td></tr>
                         )}
                     </tbody>
                  </table>

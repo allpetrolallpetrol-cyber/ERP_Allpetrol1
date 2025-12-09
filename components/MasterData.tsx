@@ -1,8 +1,7 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
-import { Plus, Save, Trash2, Edit2, Search, List, MapPin, Ruler, Tag, Hash, CheckSquare, X, CheckCircle, CalendarClock, Cog, Truck, Settings, ArrowLeft, AlertTriangle, FileDigit, Users, Eye, Package, Briefcase, UserCircle } from 'lucide-react';
+import { Plus, Save, Trash2, Edit2, Search, List, MapPin, Ruler, Tag, Hash, CheckSquare, X, CheckCircle, CalendarClock, Cog, Truck, Settings, ArrowLeft, AlertTriangle, FileDigit, Users, Eye, Package, Briefcase, UserCircle, Grid } from 'lucide-react';
 import { useMasterData } from '../contexts/MasterDataContext';
-import { Material, MaintenanceRoutine, AssetType, Asset, ChecklistModel, ChecklistItemDefinition, Numerator, DocumentType, Warehouse, WarehouseLocation, Client, Supplier } from '../types';
+import { Material, MaintenanceRoutine, AssetType, Asset, ChecklistModel, ChecklistItemDefinition, Numerator, DocumentType, Warehouse, WarehouseLocation, Client, Supplier, Area } from '../types';
 
 // --- Reusable UI Components ---
 
@@ -228,14 +227,6 @@ const SupplierMasterView = () => {
     }, [suppliers, searchTerm]);
 
     if (viewMode === 'FORM') {
-        // Map Supplier structure to Form structure if names differ (currently Supplier has 'name' in context types but 'businessName' in Client interface inheritance in types.ts.
-        // Checking types.ts: Supplier extends Client. Client has businessName.
-        // Checking MasterDataContext: interface Supplier defines 'name'. 
-        // Adjustment: Let's unify. The Context interface seems to use 'name' but the Type uses 'businessName'.
-        // To be safe, I'll pass data and handle any property mapping if needed, but assuming `addSupplier` handles object spread.
-        // Note: The `Supplier` type in context definition uses `name`, but the `Supplier` interface in `types.ts` uses `businessName`.
-        // I will map `name` to `businessName` for the form pre-fill to ensure consistency.
-        
         const formInitialData = selectedSupplier ? {
             ...selectedSupplier,
             businessName: (selectedSupplier as any).name || selectedSupplier.businessName // Handle legacy/mismatch
@@ -296,155 +287,127 @@ const SupplierMasterView = () => {
     );
 };
 
-// --- New Asset Manager Components ---
+// --- Areas (Sectores) Master View ---
 
-const InlineRoutineManager = ({ assetId }: { assetId: string }) => {
-    const { routines, addRoutine, updateRoutine } = useMasterData();
-    const assetRoutines = routines.filter(r => r.assetId === assetId);
+const AreasMasterView = () => {
+    const { areas, addArea, deleteArea } = useMasterData();
+    const [newAreaName, setNewAreaName] = useState('');
 
-    // Form State
-    const [editingId, setEditingId] = useState<string | null>(null);
-    const [name, setName] = useState('');
-    const [description, setDescription] = useState('');
-    const [frequency, setFrequency] = useState('');
-    const [discipline, setDiscipline] = useState('');
-    const [hours, setHours] = useState('');
-
-    const handleEditClick = (routine: MaintenanceRoutine) => {
-        setEditingId(routine.id);
-        setName(routine.name);
-        setDescription(routine.description || '');
-        setFrequency(routine.frequencyDays.toString());
-        setDiscipline(routine.discipline);
-        setHours(routine.estimatedHours.toString());
-    };
-
-    const handleCancelEdit = () => {
-        setEditingId(null);
-        setName('');
-        setDescription('');
-        setFrequency('');
-        setDiscipline('');
-        setHours('');
-    };
-
-    const handleSaveRoutine = async () => {
-        if (!name || !frequency || !discipline) {
-            alert("Complete los campos requeridos");
-            return;
-        }
-
-        const routineData: MaintenanceRoutine = {
-            id: editingId || `RT-${Date.now()}`,
-            assetId: assetId,
-            name,
-            description,
-            frequencyDays: parseInt(frequency),
-            discipline: discipline as any,
-            estimatedHours: parseFloat(hours) || 1,
-            lastExecutionDate: editingId 
-                ? (routines.find(r => r.id === editingId)?.lastExecutionDate || new Date().toISOString().split('T')[0]) 
-                : new Date().toISOString().split('T')[0]
-        };
-
+    const handleAdd = async () => {
+        if (!newAreaName.trim()) return;
+        const id = `AREA-${Date.now()}`;
         try {
-            if (editingId) {
-                await updateRoutine(routineData);
-            } else {
-                await addRoutine(routineData);
-            }
-            handleCancelEdit(); // Reset form
+            await addArea({ id, name: newAreaName });
+            setNewAreaName('');
         } catch (e) {
             console.error(e);
-            alert("Error al guardar rutina");
+            alert("Error al agregar área");
+        }
+    };
+
+    const handleDelete = async (id: string) => {
+        if (confirm("¿Está seguro de eliminar esta área? Los usuarios asignados podrían quedar inconsistentes.")) {
+            await deleteArea(id);
         }
     };
 
     return (
-        <div className="space-y-6">
-            {/* List of Existing Routines */}
-            <div className="bg-slate-50 rounded-lg border border-slate-200 overflow-hidden">
-                <div className="px-4 py-3 border-b border-slate-200 bg-slate-100 flex justify-between items-center">
-                    <h4 className="font-bold text-slate-700 text-sm">Rutinas Activas para este Equipo</h4>
-                    <span className="bg-slate-200 text-slate-600 text-xs px-2 py-0.5 rounded-full">{assetRoutines.length}</span>
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+             <SectionHeader title="Gestión de Áreas y Sectores" icon={Grid} />
+             
+             <div className="flex gap-4 items-end mb-6 border-b border-slate-100 pb-6">
+                <div className="flex-1">
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Nombre del Área / Departamento</label>
+                    <input 
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none bg-white focus:ring-2 focus:ring-accent" 
+                        placeholder="Ej. Recursos Humanos" 
+                        value={newAreaName}
+                        onChange={(e) => setNewAreaName(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
+                    />
                 </div>
-                {assetRoutines.length > 0 ? (
-                    <table className="w-full text-sm text-left">
-                        <thead className="text-slate-500 font-semibold border-b border-slate-200">
-                            <tr>
-                                <th className="px-4 py-2">Rutina</th>
-                                <th className="px-4 py-2">Descripción</th>
-                                <th className="px-4 py-2">Disciplina</th>
-                                <th className="px-4 py-2">Frecuencia</th>
-                                <th className="px-4 py-2 text-right">Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                            {assetRoutines.map(r => (
-                                <tr key={r.id} className={`bg-white ${editingId === r.id ? 'bg-blue-50' : ''}`}>
-                                    <td className="px-4 py-2 font-medium text-slate-800">{r.name}</td>
-                                    <td className="px-4 py-2 text-slate-500 max-w-xs truncate" title={r.description}>{r.description || '-'}</td>
-                                    <td className="px-4 py-2 text-slate-500">{r.discipline}</td>
-                                    <td className="px-4 py-2">Cada {r.frequencyDays} días</td>
-                                    <td className="px-4 py-2 text-right">
-                                        <button onClick={() => handleEditClick(r)} className="text-accent hover:text-blue-700 p-1 rounded">
-                                            <Edit2 size={16} />
-                                        </button>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                ) : (
-                    <div className="p-4 text-center text-slate-400 text-sm italic">
-                        No hay rutinas definidas para este equipo.
-                    </div>
-                )}
+                <button 
+                    onClick={handleAdd}
+                    className="bg-slate-800 text-white px-4 py-2 rounded-lg hover:bg-slate-700"
+                >
+                    Agregar
+                </button>
             </div>
 
-            {/* Add/Edit Routine Form */}
-            <div className={`p-4 rounded-xl border transition-all ${editingId ? 'bg-yellow-50 border-yellow-200' : 'bg-blue-50 border-blue-100'}`}>
-                <h4 className={`text-sm font-bold mb-3 flex items-center ${editingId ? 'text-yellow-800' : 'text-blue-800'}`}>
-                    {editingId ? <Edit2 size={16} className="mr-1"/> : <Plus size={16} className="mr-1"/>} 
-                    {editingId ? 'Editando Rutina' : 'Agregar Nueva Rutina'}
-                </h4>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                    <div className="md:col-span-2">
-                        <label className="block text-xs font-bold text-slate-500 mb-1">Nombre Tarea</label>
-                        <input className="w-full px-2 py-1.5 border border-white/50 rounded text-sm focus:ring-1 focus:ring-accent bg-white" placeholder="Ej. Cambio Aceite" value={name} onChange={e => setName(e.target.value)} />
-                    </div>
-                    <div className="md:col-span-1">
-                         <label className="block text-xs font-bold text-slate-500 mb-1">Disciplina</label>
-                        <select className="w-full px-2 py-1.5 border border-white/50 rounded text-sm bg-white" value={discipline} onChange={e => setDiscipline(e.target.value)}>
-                             <option value="">Seleccionar...</option>
-                            <option value="Mecánica">Mecánica</option>
-                            <option value="Eléctrica">Eléctrica</option>
-                            <option value="Hidráulica">Hidráulica</option>
-                            <option value="Neumática">Neumática</option>
-                            <option value="General">General</option>
-                        </select>
-                    </div>
-                    <div className="md:col-span-1">
-                        <label className="block text-xs font-bold text-slate-500 mb-1">Horas Est.</label>
-                        <input type="number" className="w-full px-2 py-1.5 border border-white/50 rounded text-sm bg-white" placeholder="1" value={hours} onChange={e => setHours(e.target.value)} />
-                    </div>
-                    <div className="md:col-span-3">
-                        <label className="block text-xs font-bold text-slate-500 mb-1">Descripción / Instrucciones (Qué revisar)</label>
-                        <input className="w-full px-2 py-1.5 border border-white/50 rounded text-sm focus:ring-1 focus:ring-accent bg-white" placeholder="Detalle de la tarea..." value={description} onChange={e => setDescription(e.target.value)} />
-                    </div>
-                    <div className="md:col-span-1">
-                        <label className="block text-xs font-bold text-slate-500 mb-1">Frec. (Días)</label>
-                        <input type="number" className="w-full px-2 py-1.5 border border-white/50 rounded text-sm bg-white" placeholder="90" value={frequency} onChange={e => setFrequency(e.target.value)} />
-                    </div>
-                </div>
-                <div className="mt-3 flex justify-end gap-2">
-                    {editingId && (
-                        <button onClick={handleCancelEdit} className="text-slate-500 px-3 py-1.5 text-sm font-medium hover:text-slate-800">
-                            Cancelar
+             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {areas.map(area => (
+                    <div key={area.id} className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex justify-between items-center group">
+                        <span className="font-medium text-slate-800">{area.name}</span>
+                        <button onClick={() => handleDelete(area.id)} className="text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Trash2 size={16} />
                         </button>
-                    )}
-                    <button onClick={handleSaveRoutine} className={`text-white px-3 py-1.5 rounded-lg text-sm font-medium shadow-sm ${editingId ? 'bg-yellow-600 hover:bg-yellow-700' : 'bg-blue-600 hover:bg-blue-700'}`}>
-                        {editingId ? 'Actualizar Rutina' : 'Guardar Rutina'}
+                    </div>
+                ))}
+                {areas.length === 0 && <p className="text-slate-400 italic">No hay áreas definidas.</p>}
+             </div>
+        </div>
+    );
+};
+
+// --- Asset Master View ---
+
+const AssetForm = ({ initialData, onSave, onCancel }: { initialData?: Asset, onSave: (data: Asset) => void, onCancel: () => void }) => {
+    const { machineTypes, vehicleTypes } = useMasterData();
+    const [formData, setFormData] = useState<Partial<Asset>>(initialData || {
+        code: '',
+        name: '',
+        type: AssetType.MACHINE,
+        subtype: '',
+        brand: '',
+        model: '',
+        serialNumber: '',
+        location: '',
+        plate: '',
+        mileage: 0
+    });
+
+    const handleChange = (e: any) => setFormData({...formData, [e.target.name]: e.target.value});
+
+    const handleSubmit = () => {
+        if (!formData.code || !formData.name) return alert("Código y Nombre son obligatorios");
+        onSave(formData as Asset);
+    };
+
+    return (
+        <div>
+            <div className="flex justify-between items-center mb-6">
+                <button onClick={onCancel} className="text-slate-500 hover:text-slate-800 flex items-center text-sm"><ArrowLeft size={16} className="mr-1"/> Volver</button>
+                <h3 className="text-lg font-bold text-slate-800">{initialData ? 'Editar Activo' : 'Nuevo Activo'}</h3>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Input label="Código Interno" name="code" value={formData.code} onChange={handleChange} />
+                <Input label="Nombre / Descripción" name="name" value={formData.name} onChange={handleChange} />
+                <Select label="Tipo de Activo" name="type" value={formData.type} onChange={handleChange} options={[{label: 'Máquina / Equipo', value: AssetType.MACHINE}, {label: 'Vehículo / Flota', value: AssetType.VEHICLE}]} />
+                
+                <Select 
+                    label="Subtipo / Categoría" 
+                    name="subtype" 
+                    value={formData.subtype} 
+                    onChange={handleChange} 
+                    options={formData.type === AssetType.MACHINE ? machineTypes : vehicleTypes} 
+                />
+
+                <Input label="Marca" name="brand" value={formData.brand} onChange={handleChange} />
+                <Input label="Modelo" name="model" value={formData.model} onChange={handleChange} />
+                <Input label="Nro. Serie / Chasis" name="serialNumber" value={formData.serialNumber} onChange={handleChange} />
+                
+                {formData.type === AssetType.MACHINE ? (
+                    <Input label="Ubicación en Planta" name="location" value={formData.location} onChange={handleChange} />
+                ) : (
+                    <>
+                        <Input label="Patente / Dominio" name="plate" value={formData.plate} onChange={handleChange} />
+                        <Input label="Kilometraje Actual" name="mileage" type="number" value={formData.mileage} onChange={handleChange} />
+                    </>
+                )}
+
+                <div className="col-span-1 md:col-span-2 flex justify-end mt-4">
+                    <button onClick={handleSubmit} className="flex items-center px-6 py-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 shadow-md">
+                        <Save size={18} className="mr-2"/> Guardar Activo
                     </button>
                 </div>
             </div>
@@ -452,583 +415,310 @@ const InlineRoutineManager = ({ assetId }: { assetId: string }) => {
     );
 };
 
-const AssetDetailView = ({ asset, onSave, onCancel }: { asset: Partial<Asset> | null, onSave: (a: Asset) => void, onCancel: () => void }) => {
-    const { machineTypes, warehouses, vehicleTypes } = useMasterData();
-    const isNew = !asset?.id;
-    
-    // Local state for form
-    const [formData, setFormData] = useState<Partial<Asset>>(asset || { type: AssetType.MACHINE });
-    const [activeTab, setActiveTab] = useState<'INFO' | 'ROUTINES'>('INFO');
-
-    // Mapped Warehouse Options for Select
-    const warehouseOptions = useMemo(() => warehouses.map(w => ({ value: w.name, label: w.name })), [warehouses]);
-
-    const handleChange = (field: keyof Asset, value: any) => {
-        setFormData(prev => ({ ...prev, [field]: value }));
-    };
-
-    const handleSave = () => {
-        if (!formData.code || !formData.name) {
-            alert("Código y Nombre son obligatorios");
-            return;
-        }
-        
-        const savedAsset = { 
-            ...formData, 
-            id: formData.id || `AST-${Date.now()}` 
-        } as Asset;
-        onSave(savedAsset);
-    };
-
-    return (
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-full min-h-[500px]">
-            {/* Header */}
-            <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50">
-                <div className="flex items-center">
-                    <button onClick={onCancel} className="mr-3 p-2 hover:bg-slate-200 rounded-full text-slate-500"><ArrowLeft size={20}/></button>
-                    <div>
-                        <h3 className="text-xl font-bold text-slate-800">{isNew ? 'Nuevo Activo' : `Editar: ${formData.name}`}</h3>
-                        <p className="text-xs text-slate-500 font-mono">{formData.code || 'Sin Código Asignado'}</p>
-                    </div>
-                </div>
-                {!isNew && (
-                    <div className="flex space-x-2 bg-white p-1 rounded-lg border border-slate-200">
-                        <button 
-                            onClick={() => setActiveTab('INFO')}
-                            className={`px-3 py-1.5 text-sm font-medium rounded transition-all ${activeTab === 'INFO' ? 'bg-slate-800 text-white' : 'text-slate-500 hover:bg-slate-50'}`}
-                        >
-                            Datos Generales
-                        </button>
-                        <button 
-                            onClick={() => setActiveTab('ROUTINES')}
-                            className={`px-3 py-1.5 text-sm font-medium rounded transition-all flex items-center ${activeTab === 'ROUTINES' ? 'bg-slate-800 text-white' : 'text-slate-500 hover:bg-slate-50'}`}
-                        >
-                            <CalendarClock size={14} className="mr-2"/> Plan de Mantenimiento
-                        </button>
-                    </div>
-                )}
-            </div>
-
-            {/* Content */}
-            <div className="p-6 flex-1 overflow-y-auto">
-                {activeTab === 'INFO' && (
-                    <div className="max-w-4xl mx-auto animate-in fade-in">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                            <Input label="Código Interno" value={formData.code || ''} onChange={(e:any) => handleChange('code', e.target.value)} placeholder="Ej. TR-01" />
-                            <Input label="Nombre del Activo" value={formData.name || ''} onChange={(e:any) => handleChange('name', e.target.value)} placeholder="Ej. Torno CNC" />
-                            
-                            <div className="mb-4">
-                                <label className="block text-sm font-medium text-slate-700 mb-1">Tipo de Activo</label>
-                                <select 
-                                    className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white"
-                                    value={formData.type}
-                                    onChange={(e) => handleChange('type', e.target.value)}
-                                    disabled={!isNew}
-                                >
-                                    <option value={AssetType.MACHINE}>Máquina / Equipo</option>
-                                    <option value={AssetType.VEHICLE}>Vehículo / Flota</option>
-                                </select>
-                            </div>
-
-                            <Input label="Marca" value={formData.brand || ''} onChange={(e:any) => handleChange('brand', e.target.value)} />
-                            <Input label="Modelo" value={formData.model || ''} onChange={(e:any) => handleChange('model', e.target.value)} />
-                            <Input label="Nro Serie" value={formData.serialNumber || ''} onChange={(e:any) => handleChange('serialNumber', e.target.value)} />
-                        </div>
-
-                        {formData.type === AssetType.MACHINE ? (
-                             <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 mb-6">
-                                <h4 className="text-sm font-bold text-slate-700 mb-4 flex items-center"><Cog size={16} className="mr-2"/> Detalles de Máquina</h4>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <Select 
-                                        label="Categoría Máquina" 
-                                        options={machineTypes} 
-                                        value={formData.subtype} // Saving subtype
-                                        onChange={(e: any) => handleChange('subtype', e.target.value)} 
-                                    />
-                                    <Select 
-                                        label="Ubicación Física" 
-                                        options={warehouseOptions} 
-                                        value={formData.location || ''} 
-                                        onChange={(e:any) => handleChange('location', e.target.value)} 
-                                    />
-                                </div>
-                             </div>
-                        ) : (
-                             <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 mb-6">
-                                <h4 className="text-sm font-bold text-slate-700 mb-4 flex items-center"><Truck size={16} className="mr-2"/> Detalles de Vehículo</h4>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <Select 
-                                        label="Tipo Vehículo" 
-                                        options={vehicleTypes}
-                                        value={formData.subtype} // Saving subtype
-                                        onChange={(e: any) => handleChange('subtype', e.target.value)}
-                                    />
-                                    <Input label="Patente / Dominio" value={formData.plate || ''} onChange={(e:any) => handleChange('plate', e.target.value)} />
-                                    <Input label="Kilometraje Actual" type="number" value={formData.mileage || ''} onChange={(e:any) => handleChange('mileage', parseFloat(e.target.value))} />
-                                </div>
-                             </div>
-                        )}
-
-                        <div className="flex justify-end pt-4 border-t border-slate-100">
-                             <button onClick={handleSave} className="flex items-center px-6 py-2 bg-success text-white rounded-lg hover:bg-green-600 shadow-md">
-                                <Save size={18} className="mr-2"/> {isNew ? 'Crear Activo' : 'Guardar Cambios'}
-                            </button>
-                        </div>
-                    </div>
-                )}
-
-                {activeTab === 'ROUTINES' && !isNew && (
-                    <div className="max-w-4xl mx-auto animate-in fade-in">
-                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6 flex items-start">
-                            <CalendarClock className="text-blue-600 mt-1 mr-3" size={24} />
-                            <div>
-                                <h4 className="text-blue-900 font-bold">Definición de Plan Preventivo</h4>
-                                <p className="text-blue-700 text-sm">Configure aquí las tareas recurrentes para este equipo. Estas rutinas alimentarán automáticamente el Planificador de Mantenimiento.</p>
-                            </div>
-                        </div>
-                        <InlineRoutineManager assetId={formData.id!} />
-                    </div>
-                )}
-            </div>
-        </div>
-    );
-};
-
 const AssetMasterView = () => {
     const { assets, addAsset } = useMasterData();
-    const [viewMode, setViewMode] = useState<'LIST' | 'DETAIL'>('LIST');
+    const [viewMode, setViewMode] = useState<'LIST' | 'FORM'>('LIST');
     const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
-    const [filterType, setFilterType] = useState<AssetType>(AssetType.MACHINE);
+    const [searchTerm, setSearchTerm] = useState('');
 
-    const handleCreate = () => {
-        setSelectedAsset({ type: filterType } as Asset);
-        setViewMode('DETAIL');
+    const handleSave = async (data: Asset) => {
+        const id = selectedAsset?.id || `ASSET-${Date.now()}`;
+        await addAsset({ ...data, id });
+        setViewMode('LIST');
     };
 
-    const handleEdit = (asset: Asset) => {
-        setSelectedAsset(asset);
-        setViewMode('DETAIL');
-    };
+    const filtered = assets.filter(a => 
+        a.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+        a.code.toLowerCase().includes(searchTerm.toLowerCase())
+    );
 
-    const handleSaveAsset = async (asset: Asset) => {
-        try {
-            await addAsset(asset);
-            setViewMode('LIST');
-            setSelectedAsset(null);
-        } catch(e) {
-            console.error(e);
-            alert("Error al guardar activo");
-        }
-    };
-
-    const filteredAssets = assets.filter(a => a.type === filterType);
-
-    if (viewMode === 'DETAIL') {
-        return <AssetDetailView asset={selectedAsset} onSave={handleSaveAsset} onCancel={() => setViewMode('LIST')} />;
-    }
+    if (viewMode === 'FORM') return <AssetForm initialData={selectedAsset || undefined} onSave={handleSave} onCancel={() => setViewMode('LIST')} />;
 
     return (
         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-             <div className="flex justify-between items-center mb-6">
-                <div className="flex items-center space-x-4">
-                    <h3 className="text-lg font-bold text-slate-800">Maestro de Activos</h3>
-                    <div className="bg-slate-100 p-1 rounded-lg flex">
-                        <button 
-                            onClick={() => setFilterType(AssetType.MACHINE)}
-                            className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${filterType === AssetType.MACHINE ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'}`}
-                        >
-                            Máquinas
-                        </button>
-                        <button 
-                             onClick={() => setFilterType(AssetType.VEHICLE)}
-                            className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${filterType === AssetType.VEHICLE ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'}`}
-                        >
-                            Vehículos
-                        </button>
-                    </div>
-                </div>
-                <button onClick={handleCreate} className="flex items-center px-4 py-2 bg-accent text-white rounded-lg hover:bg-blue-600 shadow-md transition-all">
-                    <Plus size={18} className="mr-2"/> Nuevo {filterType === AssetType.MACHINE ? 'Equipo' : 'Vehículo'}
-                </button>
-             </div>
-
-             <div className="overflow-hidden border border-slate-200 rounded-lg">
+            <SectionHeader title="Maestro de Activos" actionLabel="Nuevo Activo" onAction={() => { setSelectedAsset(null); setViewMode('FORM'); }} icon={Cog} />
+            <div className="mb-4 relative">
+                <input 
+                    type="text" 
+                    placeholder="Buscar activo..." 
+                    className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-accent"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                />
+                <Search size={18} className="absolute left-3 top-2.5 text-slate-400" />
+            </div>
+            <div className="overflow-x-auto">
                 <table className="w-full text-left text-sm">
                     <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
                         <tr>
                             <th className="px-4 py-3">Código</th>
                             <th className="px-4 py-3">Nombre</th>
-                            <th className="px-4 py-3">Subtipo</th>
+                            <th className="px-4 py-3">Tipo</th>
                             <th className="px-4 py-3">Marca/Modelo</th>
-                            <th className="px-4 py-3">{filterType === AssetType.MACHINE ? 'Ubicación' : 'Patente'}</th>
+                            <th className="px-4 py-3">Ubicación/Patente</th>
                             <th className="px-4 py-3 text-right">Acciones</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                        {filteredAssets.map(asset => (
-                            <tr key={asset.id} className="hover:bg-slate-50 group">
-                                <td className="px-4 py-3 font-mono text-slate-600">{asset.code}</td>
-                                <td className="px-4 py-3 font-medium text-slate-800">{asset.name}</td>
-                                <td className="px-4 py-3 text-slate-500"><span className="bg-slate-100 px-2 py-0.5 rounded text-xs border border-slate-200">{asset.subtype || '-'}</span></td>
-                                <td className="px-4 py-3 text-slate-500">{asset.brand} {asset.model}</td>
-                                <td className="px-4 py-3 text-slate-500">{filterType === AssetType.MACHINE ? asset.location : asset.plate}</td>
+                        {filtered.map(a => (
+                            <tr key={a.id} className="hover:bg-slate-50">
+                                <td className="px-4 py-3 font-mono text-slate-600">{a.code}</td>
+                                <td className="px-4 py-3 font-medium text-slate-800">{a.name}</td>
+                                <td className="px-4 py-3">{a.type === AssetType.MACHINE ? 'Máquina' : 'Vehículo'} <span className="text-slate-400 text-xs">({a.subtype})</span></td>
+                                <td className="px-4 py-3 text-slate-600">{a.brand} {a.model}</td>
+                                <td className="px-4 py-3 text-slate-600">{a.type === AssetType.MACHINE ? a.location : a.plate}</td>
                                 <td className="px-4 py-3 text-right">
-                                    <button onClick={() => handleEdit(asset)} className="text-accent hover:text-blue-700 font-medium flex items-center justify-end">
-                                        <Edit2 size={16} className="mr-1"/> Editar / Rutinas
+                                    <button onClick={() => { setSelectedAsset(a); setViewMode('FORM'); }} className="text-accent hover:text-blue-700">
+                                        <Edit2 size={16} />
                                     </button>
                                 </td>
                             </tr>
                         ))}
-                         {filteredAssets.length === 0 && (
-                            <tr><td colSpan={6} className="p-8 text-center text-slate-400">No hay activos registrados en esta categoría.</td></tr>
-                        )}
                     </tbody>
                 </table>
-             </div>
+            </div>
         </div>
     );
 };
 
-// --- Material & Warehouse Forms ---
+// --- Material Master View ---
 
-const MaterialForm = ({ initialData, onSave, onCancel }: { initialData?: Material | null, onSave: (m: any) => void, onCancel: () => void }) => {
-    const { uoms, suppliers, warehouses, warehouseLocations, getNextId } = useMasterData();
-    const [formData, setFormData] = useState<Partial<Material>>(initialData || { assignedSupplierIds: [] });
-    const [generatedCode, setGeneratedCode] = useState(initialData?.code || 'Calculando...');
-    const [supplierSearch, setSupplierSearch] = useState('');
+const MaterialForm = ({ initialData, onSave, onCancel }: { initialData?: Material, onSave: (data: Material) => void, onCancel: () => void }) => {
+    const { uoms, suppliers, warehouses, warehouseLocations } = useMasterData();
+    const [formData, setFormData] = useState<Partial<Material>>(initialData || {
+        code: '',
+        description: '',
+        unitOfMeasure: 'UN',
+        stock: 0,
+        minStock: 0,
+        cost: 0,
+        warehouse: '',
+        location: '',
+        assignedSupplierIds: []
+    });
 
-    useEffect(() => {
-        if (!initialData) {
-            // Fetch next ID for display only if new
-            getNextId('MATERIAL').then(id => {
-                setGeneratedCode(id);
-                setFormData(prev => ({ ...prev, code: id }));
-            });
-        }
-    }, [initialData]);
+    const handleChange = (e: any) => setFormData({...formData, [e.target.name]: e.target.value});
 
-    // Map Warehouses objects to options
-    const warehouseOptions = useMemo(() => warehouses.map(w => ({ value: w.name, label: w.name })), [warehouses]);
-    
-    // Filter locations based on selected warehouse name
-    const locationOptions = useMemo(() => {
-        if (!formData.warehouse) return [];
-        // Note: formData.warehouse stores the Name currently (legacy compat), ideally should store ID
-        const wh = warehouses.find(w => w.name === formData.warehouse);
-        if (!wh) return [];
-        return warehouseLocations
-            .filter(l => l.warehouseId === wh.id)
-            .map(l => ({ value: l.code, label: `${l.code} - ${l.description || ''}` }));
-    }, [formData.warehouse, warehouses, warehouseLocations]);
-
-    const handleChange = (e: any) => setFormData({ ...formData, [e.target.name]: e.target.value });
-    
-    const toggleSupplier = (supplierId: string) => {
+    const toggleSupplier = (id: string) => {
         const current = formData.assignedSupplierIds || [];
-        if (current.includes(supplierId)) {
-            setFormData({ ...formData, assignedSupplierIds: current.filter(id => id !== supplierId) });
+        if (current.includes(id)) {
+            setFormData({...formData, assignedSupplierIds: current.filter(s => s !== id)});
         } else {
-            setFormData({ ...formData, assignedSupplierIds: [...current, supplierId] });
+            setFormData({...formData, assignedSupplierIds: [...current, id]});
         }
     };
 
-    // Filter suppliers based on search
-    const filteredSuppliers = useMemo(() => {
-        if(!supplierSearch) return suppliers;
-        const term = supplierSearch.toLowerCase();
-        return suppliers.filter(s => s.name.toLowerCase().includes(term) || s.cuit.includes(term));
-    }, [suppliers, supplierSearch]);
-
     const handleSubmit = () => {
-        if (!formData.description) {
-            alert("El nombre del material es obligatorio.");
-            return;
-        }
-        onSave({...formData, code: generatedCode});
+        if (!formData.code || !formData.description) return alert("Código y Descripción obligatorios");
+        onSave(formData as Material);
     };
 
     return (
-        <div className="h-full flex flex-col">
+        <div>
             <div className="flex justify-between items-center mb-6">
-                <button onClick={onCancel} className="text-slate-500 hover:text-slate-800 flex items-center text-sm"><ArrowLeft size={16} className="mr-1"/> Volver a la lista</button>
+                <button onClick={onCancel} className="text-slate-500 hover:text-slate-800 flex items-center text-sm"><ArrowLeft size={16} className="mr-1"/> Volver</button>
                 <h3 className="text-lg font-bold text-slate-800">{initialData ? 'Editar Material' : 'Nuevo Material'}</h3>
             </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Input label="Código SKU" name="code" value={formData.code} onChange={handleChange} />
+                <Input label="Descripción" name="description" value={formData.description} onChange={handleChange} />
+                <Select label="Unidad de Medida" name="unitOfMeasure" value={formData.unitOfMeasure} onChange={handleChange} options={uoms} />
+                
+                <div className="grid grid-cols-2 gap-4">
+                    <Input label="Stock Actual" name="stock" type="number" value={formData.stock} onChange={handleChange} />
+                    <Input label="Stock Mínimo" name="minStock" type="number" value={formData.minStock} onChange={handleChange} />
+                </div>
+                
+                <Input label="Costo Referencia" name="cost" type="number" value={formData.cost} onChange={handleChange} />
+                
+                <Select label="Almacén Principal" name="warehouse" value={formData.warehouse} onChange={handleChange} options={warehouses.map(w => ({label: w.name, value: w.id}))} />
+                <Select label="Ubicación Default" name="location" value={formData.location} onChange={handleChange} options={warehouseLocations.filter(l => !formData.warehouse || l.warehouseId === formData.warehouse).map(l => ({label: l.code, value: l.code}))} />
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                 <div className="col-span-1">
-                     <Input label="Código (Automático)" name="code" value={generatedCode} disabled />
-                     <Input label="Nombre del Material" name="description" value={formData.description || ''} onChange={handleChange} placeholder="Ej. Rodamiento 6204 SKF" />
-                     
-                     <div className="mb-4">
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Descripción Técnica / Detalle</label>
-                        <textarea 
-                            name="technicalDescription"
-                            className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-accent outline-none bg-white min-h-[100px] resize-none"
-                            onChange={handleChange}
-                            value={formData.technicalDescription || ''}
-                            placeholder="Especificaciones técnicas, medidas, material, etc."
-                        ></textarea>
-                     </div>
+                <div className="col-span-1 md:col-span-2">
+                    <label className="block text-sm font-medium text-slate-700 mb-2">Proveedores Habilitados</label>
+                    <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto border p-2 rounded-lg bg-slate-50">
+                        {suppliers.map(s => (
+                            <button 
+                                key={s.id} 
+                                onClick={() => toggleSupplier(s.id)}
+                                className={`px-2 py-1 text-xs rounded border ${formData.assignedSupplierIds?.includes(s.id) ? 'bg-blue-100 border-blue-300 text-blue-800' : 'bg-white border-slate-200 text-slate-500'}`}
+                            >
+                                {(s as any).name || s.businessName}
+                            </button>
+                        ))}
+                    </div>
+                </div>
 
-                     <Select label="Unidad" name="unitOfMeasure" value={formData.unitOfMeasure || ''} options={uoms} onChange={handleChange} />
-                     
-                     <div className="grid grid-cols-2 gap-4">
-                        <Select label="Almacén Principal" name="warehouse" value={formData.warehouse || ''} options={warehouseOptions} onChange={handleChange} />
-                        {/* Conditional select if warehouse is chosen and locations exist, else text input */}
-                        {locationOptions.length > 0 ? (
-                            <Select label="Ubicación (Rack/Estante)" name="location" value={formData.location || ''} options={locationOptions} onChange={handleChange} />
-                        ) : (
-                            <Input label="Ubicación (Rack/Estante)" name="location" value={formData.location || ''} onChange={handleChange} placeholder="Ej. Estante A-01" />
-                        )}
-                     </div>
-
-                     <div className="grid grid-cols-2 gap-4">
-                         <Input label="Stock Min" name="minStock" type="number" value={formData.minStock || ''} onChange={handleChange} placeholder="10" />
-                         <Input label="Costo Estimado" name="cost" type="number" value={formData.cost || ''} onChange={handleChange} placeholder="0.00" />
-                     </div>
-                 </div>
-
-                 <div className="col-span-1 bg-slate-50 p-4 rounded-xl border border-slate-200 flex flex-col">
-                     <h4 className="text-sm font-bold text-slate-700 mb-2 flex items-center"><Users size={16} className="mr-2"/> Proveedores Habilitados</h4>
-                     <p className="text-xs text-slate-500 mb-3">Seleccione los proveedores que suministran este material.</p>
-                     
-                     <div className="relative mb-2">
-                        <input 
-                            type="text" 
-                            className="w-full pl-8 pr-3 py-1.5 text-sm border border-slate-300 rounded-lg outline-none focus:ring-1 focus:ring-accent"
-                            placeholder="Buscar por Nombre o CUIT..."
-                            value={supplierSearch}
-                            onChange={(e) => setSupplierSearch(e.target.value)}
-                        />
-                        <Search size={14} className="absolute left-2.5 top-2 text-slate-400"/>
-                     </div>
-
-                     <div className="flex-1 overflow-y-auto custom-scrollbar bg-white p-2 rounded border border-slate-200 max-h-[400px]">
-                         {filteredSuppliers.length > 0 ? filteredSuppliers.map(sup => (
-                             <div key={sup.id} className="flex items-center p-2 hover:bg-slate-50 rounded cursor-pointer border-b border-slate-50 last:border-0" onClick={() => toggleSupplier(sup.id)}>
-                                 <div className={`flex-shrink-0 w-4 h-4 rounded border flex items-center justify-center mr-3 transition-colors ${formData.assignedSupplierIds?.includes(sup.id) ? 'bg-accent border-accent text-white' : 'border-slate-300'}`}>
-                                     {formData.assignedSupplierIds?.includes(sup.id) && <CheckSquare size={12}/>}
-                                 </div>
-                                 <div>
-                                     <div className={`text-sm font-medium ${formData.assignedSupplierIds?.includes(sup.id) ? 'text-accent' : 'text-slate-700'}`}>{sup.name}</div>
-                                     <div className="text-xs text-slate-400">CUIT: {sup.cuit}</div>
-                                 </div>
-                             </div>
-                         )) : (
-                             <div className="p-4 text-center text-slate-400 text-xs">
-                                 No se encontraron proveedores.
-                             </div>
-                         )}
-                     </div>
-                     <div className="mt-2 text-right text-xs text-slate-500">
-                        {formData.assignedSupplierIds?.length || 0} seleccionados
-                     </div>
-                 </div>
-
-                 <div className="col-span-1 md:col-span-2 flex justify-end">
-                     <button onClick={handleSubmit} className="bg-success text-white px-6 py-2 rounded-lg flex items-center shadow-md hover:bg-green-600 transition-colors">
-                         <Save size={18} className="mr-2"/> Guardar Material
-                     </button>
-                 </div>
+                <div className="col-span-1 md:col-span-2 flex justify-end mt-4">
+                    <button onClick={handleSubmit} className="flex items-center px-6 py-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 shadow-md">
+                        <Save size={18} className="mr-2"/> Guardar Material
+                    </button>
+                </div>
             </div>
         </div>
     );
 };
 
 const MaterialMasterView = () => {
-    const { materials, addMaterial } = useMasterData();
+    const { materials, addMaterial, getNextId } = useMasterData();
     const [viewMode, setViewMode] = useState<'LIST' | 'FORM'>('LIST');
     const [selectedMaterial, setSelectedMaterial] = useState<Material | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
 
-    const handleCreate = () => {
-        setSelectedMaterial(null);
-        setViewMode('FORM');
+    const handleSave = async (data: Material) => {
+        const id = selectedMaterial?.id || await getNextId('MATERIAL');
+        await addMaterial({ ...data, id });
+        setViewMode('LIST');
     };
 
-    const handleEdit = (m: Material) => {
-        setSelectedMaterial(m);
-        setViewMode('FORM');
-    };
+    const filtered = materials.filter(m => 
+        m.description.toLowerCase().includes(searchTerm.toLowerCase()) || 
+        m.code.toLowerCase().includes(searchTerm.toLowerCase())
+    );
 
-    const handleSave = async (data: any) => {
-        try {
-            await addMaterial({ 
-                stock: 0, // Default stock if new, usually stock is handled by warehouse, but logic kept from previous form
-                ...data 
-            });
-            setViewMode('LIST');
-            setSelectedMaterial(null);
-        } catch(e) {
-            console.error(e);
-            alert("Error al guardar material");
-        }
-    };
-
-    const filteredMaterials = useMemo(() => {
-        if(!searchTerm) return materials;
-        const term = searchTerm.toLowerCase();
-        return materials.filter(m => m.code.toLowerCase().includes(term) || m.description.toLowerCase().includes(term));
-    }, [materials, searchTerm]);
-
-    if (viewMode === 'FORM') {
-        return <MaterialForm initialData={selectedMaterial} onSave={handleSave} onCancel={() => setViewMode('LIST')} />;
-    }
+    if (viewMode === 'FORM') return <MaterialForm initialData={selectedMaterial || undefined} onSave={handleSave} onCancel={() => setViewMode('LIST')} />;
 
     return (
         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-             <div className="flex justify-between items-center mb-6">
-                <div>
-                    <h3 className="text-lg font-bold text-slate-800 flex items-center"><Tag size={20} className="mr-2 text-slate-500"/> Maestro de Materiales</h3>
-                    <div className="bg-yellow-50 px-2 py-1 rounded border border-yellow-200 text-xs text-yellow-800 flex items-center mt-2 w-fit">
-                        <FileDigit size={12} className="mr-1"/> Numeración automática (Rango 3xxxxxx).
-                    </div>
-                </div>
-                <button onClick={handleCreate} className="flex items-center px-4 py-2 bg-accent text-white rounded-lg hover:bg-blue-600 shadow-md transition-all">
-                    <Plus size={18} className="mr-2"/> Nuevo Material
-                </button>
-             </div>
-
-             <div className="mb-4 relative">
-                <input 
-                    type="text" 
-                    placeholder="Buscar por código o nombre..." 
-                    className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-accent"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                />
+            <SectionHeader title="Maestro de Materiales" actionLabel="Nuevo Material" onAction={() => { setSelectedMaterial(null); setViewMode('FORM'); }} icon={Package} />
+            <div className="mb-4 relative">
+                <input type="text" placeholder="Buscar material..." className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-accent" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                 <Search size={18} className="absolute left-3 top-2.5 text-slate-400" />
-             </div>
-
-             <div className="overflow-hidden border border-slate-200 rounded-lg">
+            </div>
+            <div className="overflow-x-auto">
                 <table className="w-full text-left text-sm">
                     <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
                         <tr>
                             <th className="px-4 py-3">Código</th>
-                            <th className="px-4 py-3">Nombre</th>
-                            <th className="px-4 py-3">Almacén</th>
+                            <th className="px-4 py-3">Descripción</th>
+                            <th className="px-4 py-3">Stock</th>
                             <th className="px-4 py-3">Ubicación</th>
-                            <th className="px-4 py-3">Unidad</th>
-                            <th className="px-4 py-3 text-right">Stock Min</th>
-                            <th className="px-4 py-3 text-right">Costo Est.</th>
                             <th className="px-4 py-3 text-right">Acciones</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                        {filteredMaterials.map(mat => (
-                            <tr key={mat.id} className="hover:bg-slate-50 group">
-                                <td className="px-4 py-3 font-mono text-slate-600">{mat.code}</td>
-                                <td className="px-4 py-3 font-medium text-slate-800">
-                                    {mat.description}
-                                    {mat.technicalDescription && <div className="text-xs text-slate-400 truncate max-w-xs">{mat.technicalDescription}</div>}
-                                </td>
-                                <td className="px-4 py-3 text-slate-600 font-medium">{mat.warehouse || '-'}</td>
-                                <td className="px-4 py-3 text-slate-500">{mat.location || '-'}</td>
-                                <td className="px-4 py-3 text-slate-500">{mat.unitOfMeasure}</td>
-                                <td className="px-4 py-3 text-right text-slate-600">{mat.minStock}</td>
-                                <td className="px-4 py-3 text-right text-slate-600">${mat.cost}</td>
+                        {filtered.map(m => (
+                            <tr key={m.id} className="hover:bg-slate-50">
+                                <td className="px-4 py-3 font-mono text-slate-600">{m.code}</td>
+                                <td className="px-4 py-3 font-medium text-slate-800">{m.description}</td>
+                                <td className={`px-4 py-3 font-bold ${m.stock <= m.minStock ? 'text-red-500' : 'text-slate-700'}`}>{m.stock} {m.unitOfMeasure}</td>
+                                <td className="px-4 py-3 text-slate-500">{m.location || '-'}</td>
                                 <td className="px-4 py-3 text-right">
-                                    <button onClick={() => handleEdit(mat)} className="text-accent hover:text-blue-700 font-medium flex items-center justify-end">
-                                        <Edit2 size={16} className="mr-1"/> Editar
-                                    </button>
+                                    <button onClick={() => { setSelectedMaterial(m); setViewMode('FORM'); }} className="text-accent hover:text-blue-700"><Edit2 size={16} /></button>
                                 </td>
                             </tr>
                         ))}
-                         {filteredMaterials.length === 0 && (
-                            <tr><td colSpan={8} className="p-8 text-center text-slate-400">No hay materiales registrados con ese criterio.</td></tr>
-                        )}
                     </tbody>
                 </table>
-             </div>
+            </div>
         </div>
     );
 };
 
-// --- Warehouse Manager ---
+// --- Warehouse & Locations ---
 
 const WarehouseMasterView = () => {
     const { warehouses, addWarehouse, updateWarehouse } = useMasterData();
     const [editingId, setEditingId] = useState<string | null>(null);
     const [name, setName] = useState('');
-    const [responsible, setResponsible] = useState('');
-
-    const handleEdit = (w: Warehouse) => {
-        setEditingId(w.id);
-        setName(w.name);
-        setResponsible(w.responsible || '');
-    };
-
-    const handleCancel = () => {
-        setEditingId(null);
-        setName('');
-        setResponsible('');
-    };
+    const [resp, setResp] = useState('');
 
     const handleSave = async () => {
-        if(!name.trim()) return alert("El nombre es obligatorio");
-        
-        const data: Warehouse = {
-            id: editingId || `WH-${Date.now()}`,
-            name,
-            responsible
-        };
+        if (!name) return;
+        const id = editingId || `WH-${Date.now()}`;
+        if (editingId) await updateWarehouse({ id, name, responsible: resp });
+        else await addWarehouse({ id, name, responsible: resp });
+        setEditingId(null); setName(''); setResp('');
+    };
 
-        try {
-            if(editingId) await updateWarehouse(data);
-            else await addWarehouse(data);
-            handleCancel();
-        } catch(e) {
-            console.error(e);
-            alert("Error al guardar");
-        }
+    const startEdit = (w: Warehouse) => {
+        setEditingId(w.id);
+        setName(w.name);
+        setResp(w.responsible || '');
     };
 
     return (
-        <div className="space-y-6">
-            <SectionHeader title="Maestro de Almacenes" icon={Package} />
-            
-            {/* Form */}
-            <div className={`p-5 rounded-xl border transition-all ${editingId ? 'bg-yellow-50 border-yellow-200' : 'bg-slate-50 border-slate-200'}`}>
-                <h4 className={`text-sm font-bold mb-4 flex items-center ${editingId ? 'text-yellow-800' : 'text-slate-800'}`}>
-                    {editingId ? <Edit2 size={16} className="mr-2"/> : <Plus size={16} className="mr-2"/>} 
-                    {editingId ? 'Editar Almacén' : 'Crear Nuevo Almacén'}
-                </h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
-                    <div>
-                        <label className="block text-xs font-bold text-slate-500 mb-1">Nombre Almacén</label>
-                        <input className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white" placeholder="Ej. Depósito Central" value={name} onChange={e => setName(e.target.value)} />
-                    </div>
-                    <div>
-                        <label className="block text-xs font-bold text-slate-500 mb-1">Responsable</label>
-                        <input className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white" placeholder="Ej. Juan Perez" value={responsible} onChange={e => setResponsible(e.target.value)} />
-                    </div>
-                    <div className="flex gap-2">
-                        {editingId && <button onClick={handleCancel} className="px-4 py-2 bg-white border border-slate-300 text-slate-500 rounded-lg hover:bg-slate-50">Cancelar</button>}
-                        <button onClick={handleSave} className="flex-1 px-4 py-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 font-medium">Guardar</button>
-                    </div>
+        <div>
+            <h4 className="font-bold text-slate-800 mb-4">Depósitos / Almacenes Físicos</h4>
+            <div className="flex gap-4 mb-6 items-end bg-slate-50 p-4 rounded-lg border border-slate-200">
+                <div className="flex-1">
+                    <label className="text-xs font-semibold text-slate-500">Nombre Depósito</label>
+                    <input className="w-full border rounded px-3 py-2 bg-white" value={name} onChange={e => setName(e.target.value)} />
                 </div>
+                <div className="flex-1">
+                    <label className="text-xs font-semibold text-slate-500">Responsable</label>
+                    <input className="w-full border rounded px-3 py-2 bg-white" value={resp} onChange={e => setResp(e.target.value)} />
+                </div>
+                <button onClick={handleSave} className="bg-slate-900 text-white px-4 py-2 rounded font-medium">{editingId ? 'Actualizar' : 'Crear'}</button>
+                {editingId && <button onClick={() => { setEditingId(null); setName(''); setResp(''); }} className="text-slate-500 px-2">Cancelar</button>}
             </div>
+            <div className="grid gap-3">
+                {warehouses.map(w => (
+                    <div key={w.id} className="flex justify-between items-center p-3 border rounded-lg hover:bg-slate-50">
+                        <div>
+                            <p className="font-bold text-slate-800">{w.name}</p>
+                            <p className="text-xs text-slate-500">Resp: {w.responsible}</p>
+                        </div>
+                        <button onClick={() => startEdit(w)} className="text-accent"><Edit2 size={16}/></button>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+};
 
-            {/* List */}
-            <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+const LocationMasterView = () => {
+    const { warehouses, warehouseLocations, addWarehouseLocation, updateWarehouseLocation } = useMasterData();
+    const [editingId, setEditingId] = useState<string | null>(null);
+    const [whId, setWhId] = useState('');
+    const [code, setCode] = useState('');
+
+    const handleSave = async () => {
+        if (!whId || !code) return;
+        const id = editingId || `LOC-${Date.now()}`;
+        if (editingId) await updateWarehouseLocation({ id, warehouseId: whId, code });
+        else await addWarehouseLocation({ id, warehouseId: whId, code });
+        setEditingId(null); setCode('');
+    };
+
+    const startEdit = (l: WarehouseLocation) => {
+        setEditingId(l.id);
+        setWhId(l.warehouseId);
+        setCode(l.code);
+    };
+
+    return (
+        <div>
+            <h4 className="font-bold text-slate-800 mb-4">Ubicaciones (Racks / Estantes)</h4>
+            <div className="flex gap-4 mb-6 items-end bg-slate-50 p-4 rounded-lg border border-slate-200">
+                <div className="flex-1">
+                    <label className="text-xs font-semibold text-slate-500">Almacén</label>
+                    <select className="w-full border rounded px-3 py-2 bg-white" value={whId} onChange={e => setWhId(e.target.value)}>
+                        <option value="">Seleccionar...</option>
+                        {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                    </select>
+                </div>
+                <div className="flex-1">
+                    <label className="text-xs font-semibold text-slate-500">Código Ubicación</label>
+                    <input className="w-full border rounded px-3 py-2 bg-white" value={code} onChange={e => setCode(e.target.value)} placeholder="Ej. A-01-01" />
+                </div>
+                <button onClick={handleSave} className="bg-slate-900 text-white px-4 py-2 rounded font-medium">{editingId ? 'Actualizar' : 'Crear'}</button>
+            </div>
+            <div className="max-h-96 overflow-y-auto">
                 <table className="w-full text-sm text-left">
-                    <thead className="bg-slate-100 text-slate-600 font-semibold border-b border-slate-200">
+                    <thead className="bg-slate-100 sticky top-0">
                         <tr>
-                            <th className="px-4 py-3">Nombre</th>
-                            <th className="px-4 py-3">Responsable</th>
-                            <th className="px-4 py-3 text-right">Acciones</th>
+                            <th className="p-2">Almacén</th>
+                            <th className="p-2">Ubicación</th>
+                            <th className="p-2 text-right">Acción</th>
                         </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100">
-                        {warehouses.map(w => (
-                            <tr key={w.id} className="hover:bg-slate-50">
-                                <td className="px-4 py-3 font-medium text-slate-800">{w.name}</td>
-                                <td className="px-4 py-3 text-slate-600">{w.responsible || '-'}</td>
-                                <td className="px-4 py-3 text-right">
-                                    <button onClick={() => handleEdit(w)} className="text-accent hover:text-blue-700 font-medium p-1">
-                                        <Edit2 size={16} />
-                                    </button>
-                                </td>
+                    <tbody>
+                        {warehouseLocations.map(l => (
+                            <tr key={l.id} className="border-b">
+                                <td className="p-2">{warehouses.find(w => w.id === l.warehouseId)?.name}</td>
+                                <td className="p-2 font-mono font-bold text-slate-700">{l.code}</td>
+                                <td className="p-2 text-right"><button onClick={() => startEdit(l)} className="text-accent"><Edit2 size={16}/></button></td>
                             </tr>
                         ))}
                     </tbody>
@@ -1038,391 +728,178 @@ const WarehouseMasterView = () => {
     );
 };
 
-// --- Location Manager ---
+// --- Checklist Manager ---
 
-const LocationMasterView = () => {
-    const { warehouses, warehouseLocations, addWarehouseLocation, updateWarehouseLocation } = useMasterData();
-    const [editingId, setEditingId] = useState<string | null>(null);
-    const [warehouseId, setWarehouseId] = useState('');
-    const [code, setCode] = useState('');
-    const [description, setDescription] = useState('');
-
-    const handleEdit = (l: WarehouseLocation) => {
-        setEditingId(l.id);
-        setWarehouseId(l.warehouseId);
-        setCode(l.code);
-        setDescription(l.description || '');
-    };
-
-    const handleCancel = () => {
-        setEditingId(null);
-        setWarehouseId('');
-        setCode('');
-        setDescription('');
-    };
-
-    const handleSave = async () => {
-        if(!warehouseId || !code) return alert("Almacén y Código son obligatorios");
-        
-        const data: WarehouseLocation = {
-            id: editingId || `LOC-${Date.now()}`,
-            warehouseId,
-            code,
-            description
-        };
-
-        try {
-            if(editingId) await updateWarehouseLocation(data);
-            else await addWarehouseLocation(data);
-            handleCancel();
-        } catch(e) {
-            console.error(e);
-            alert("Error al guardar");
-        }
-    };
-
-    return (
-        <div className="space-y-6">
-            <SectionHeader title="Gestión de Ubicaciones" icon={MapPin} />
-            
-            {/* Form */}
-            <div className={`p-5 rounded-xl border transition-all ${editingId ? 'bg-yellow-50 border-yellow-200' : 'bg-slate-50 border-slate-200'}`}>
-                <h4 className={`text-sm font-bold mb-4 flex items-center ${editingId ? 'text-yellow-800' : 'text-slate-800'}`}>
-                    {editingId ? <Edit2 size={16} className="mr-2"/> : <Plus size={16} className="mr-2"/>} 
-                    {editingId ? 'Editar Ubicación' : 'Crear Nueva Ubicación'}
-                </h4>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-                    <div>
-                        <label className="block text-xs font-bold text-slate-500 mb-1">Almacén Padre</label>
-                        <select className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white" value={warehouseId} onChange={e => setWarehouseId(e.target.value)}>
-                            <option value="">Seleccionar...</option>
-                            {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
-                        </select>
-                    </div>
-                    <div>
-                        <label className="block text-xs font-bold text-slate-500 mb-1">Código (Rack/Fila)</label>
-                        <input className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white" placeholder="Ej. RACK-A-01" value={code} onChange={e => setCode(e.target.value)} />
-                    </div>
-                    <div>
-                        <label className="block text-xs font-bold text-slate-500 mb-1">Descripción / Notas</label>
-                        <input className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white" placeholder="Opcional" value={description} onChange={e => setDescription(e.target.value)} />
-                    </div>
-                    <div className="md:col-span-3 flex justify-end gap-2">
-                        {editingId && <button onClick={handleCancel} className="px-4 py-2 bg-white border border-slate-300 text-slate-500 rounded-lg hover:bg-slate-50">Cancelar</button>}
-                        <button onClick={handleSave} className="px-6 py-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 font-medium">Guardar Ubicación</button>
-                    </div>
-                </div>
-            </div>
-
-            {/* List */}
-            <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-                <table className="w-full text-sm text-left">
-                    <thead className="bg-slate-100 text-slate-600 font-semibold border-b border-slate-200">
-                        <tr>
-                            <th className="px-4 py-3">Código</th>
-                            <th className="px-4 py-3">Almacén</th>
-                            <th className="px-4 py-3">Descripción</th>
-                            <th className="px-4 py-3 text-right">Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                        {warehouseLocations.map(l => {
-                            const whName = warehouses.find(w => w.id === l.warehouseId)?.name || 'Desconocido';
-                            return (
-                                <tr key={l.id} className="hover:bg-slate-50">
-                                    <td className="px-4 py-3 font-mono font-medium text-slate-700">{l.code}</td>
-                                    <td className="px-4 py-3 text-slate-600"><span className="bg-blue-50 text-blue-700 border border-blue-100 px-2 py-0.5 rounded text-xs">{whName}</span></td>
-                                    <td className="px-4 py-3 text-slate-500">{l.description || '-'}</td>
-                                    <td className="px-4 py-3 text-right">
-                                        <button onClick={() => handleEdit(l)} className="text-accent hover:text-blue-700 font-medium p-1">
-                                            <Edit2 size={16} />
-                                        </button>
-                                    </td>
-                                </tr>
-                            )
-                        })}
-                        {warehouseLocations.length === 0 && (
-                            <tr><td colSpan={4} className="p-6 text-center text-slate-400">No hay ubicaciones creadas.</td></tr>
-                        )}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    );
-};
-
-// --- CHECKLIST MODEL MANAGER ---
-// (No changes needed for Checklist logic, keeping existing)
-
-const ChecklistModelForm = ({ modelToEdit, onSave, onCancel }: { modelToEdit: ChecklistModel | null, onSave: (m: ChecklistModel) => void, onCancel: () => void }) => {
-    // ... existing checklist form logic ...
+const ChecklistModelForm = ({ initialData, onSave, onCancel }: { initialData?: ChecklistModel, onSave: (d: ChecklistModel) => void, onCancel: () => void }) => {
     const { machineTypes, vehicleTypes } = useMasterData();
-    const [name, setName] = useState(modelToEdit?.name || '');
-    const [assetType, setAssetType] = useState<AssetType>(modelToEdit?.assetType || AssetType.MACHINE);
-    const [assetSubtype, setAssetSubtype] = useState(modelToEdit?.assetSubtype || '');
-    const [items, setItems] = useState<ChecklistItemDefinition[]>(modelToEdit?.items || []);
+    const [name, setName] = useState(initialData?.name || '');
+    const [assetType, setAssetType] = useState<AssetType>(initialData?.assetType || AssetType.MACHINE);
+    const [assetSubtype, setAssetSubtype] = useState(initialData?.assetSubtype || '');
+    const [items, setItems] = useState<ChecklistItemDefinition[]>(initialData?.items || []);
     const [newItemLabel, setNewItemLabel] = useState('');
     const [newItemCritical, setNewItemCritical] = useState(false);
 
-    const handleAddItem = () => {
+    const addItem = () => {
         if (!newItemLabel.trim()) return;
-        setItems([...items, { id: `ITM-${Date.now()}`, label: newItemLabel, isCritical: newItemCritical }]);
+        setItems([...items, { id: `IT-${Date.now()}`, label: newItemLabel, isCritical: newItemCritical }]);
         setNewItemLabel('');
         setNewItemCritical(false);
     };
 
-    const handleRemoveItem = (id: string) => {
-        setItems(items.filter(i => i.id !== id));
+    const removeItem = (idx: number) => {
+        const n = [...items];
+        n.splice(idx, 1);
+        setItems(n);
     };
 
     const handleSave = () => {
-        if(!name || items.length === 0) {
-            alert("Nombre y al menos un item requeridos");
-            return;
-        }
-        const model: ChecklistModel = {
-            id: modelToEdit?.id || `CHKL-${Date.now()}`,
+        if (!name || items.length === 0) return alert("Complete nombre y agregue items.");
+        onSave({
+            id: initialData?.id || `CHK-${Date.now()}`,
             name,
             assetType,
             assetSubtype,
             items
-        };
-        onSave(model);
+        });
     };
 
     return (
-        <div className="space-y-6">
-             {/* Simplified UI for brevity in this response, functionally same as before */}
-            <div className="flex justify-between items-center mb-4">
-                <button onClick={onCancel} className="text-slate-500 hover:text-slate-800 flex items-center text-sm"><ArrowLeft size={16} className="mr-1"/> Volver a la lista</button>
+        <div>
+            <div className="flex justify-between items-center mb-6">
+                <button onClick={onCancel} className="text-slate-500 hover:text-slate-800 flex items-center text-sm"><ArrowLeft size={16} className="mr-1"/> Volver</button>
+                <h3 className="text-lg font-bold text-slate-800">{initialData ? 'Editar Modelo' : 'Nuevo Modelo de Checklist'}</h3>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="md:col-span-3">
-                    <Input label="Nombre del Modelo" value={name} onChange={(e: any) => setName(e.target.value)} placeholder="Ej. Inspección Diaria Autoelevador" />
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <Input label="Nombre del Modelo" value={name} onChange={(e: any) => setName(e.target.value)} placeholder="Ej. Inspección Diaria Grúa" />
+                <Select label="Tipo de Activo" value={assetType} onChange={(e: any) => setAssetType(e.target.value)} options={[{label: 'Máquina', value: AssetType.MACHINE}, {label: 'Vehículo', value: AssetType.VEHICLE}]} />
+                <Select label="Subtipo (Opcional)" value={assetSubtype} onChange={(e: any) => setAssetSubtype(e.target.value)} options={assetType === AssetType.MACHINE ? machineTypes : vehicleTypes} />
+            </div>
+
+            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                <h4 className="font-bold text-slate-700 mb-3">Puntos de Control</h4>
+                <div className="flex gap-2 mb-4">
+                    <input className="flex-1 border rounded px-3 py-2 bg-white" placeholder="Descripción del punto a revisar..." value={newItemLabel} onChange={e => setNewItemLabel(e.target.value)} onKeyDown={e => e.key === 'Enter' && addItem()} />
+                    <label className="flex items-center gap-2 text-sm bg-white border px-3 rounded cursor-pointer">
+                        <input type="checkbox" checked={newItemCritical} onChange={e => setNewItemCritical(e.target.checked)} /> Crítico
+                    </label>
+                    <button onClick={addItem} className="bg-slate-800 text-white px-4 rounded font-bold"><Plus size={18}/></button>
                 </div>
-                 {/* ...rest of inputs... */}
-                 <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Tipo de Activo</label>
-                    <select className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white" value={assetType} onChange={(e) => setAssetType(e.target.value as AssetType)}>
-                        <option value={AssetType.MACHINE}>Máquina</option>
-                        <option value={AssetType.VEHICLE}>Vehículo</option>
-                    </select>
-                </div>
-                <div>
-                     <label className="block text-sm font-medium text-slate-700 mb-1">Subtipo</label>
-                    <select className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white" value={assetSubtype} onChange={(e) => setAssetSubtype(e.target.value)}>
-                        <option value="">Cualquiera</option>
-                        {assetType === AssetType.MACHINE ? machineTypes.map(t => <option key={t} value={t}>{t}</option>) : vehicleTypes.map(t => <option key={t} value={t}>{t}</option>)}
-                    </select>
+                <div className="space-y-2">
+                    {items.map((it, idx) => (
+                        <div key={idx} className="flex justify-between items-center bg-white p-3 rounded border shadow-sm">
+                            <div className="flex items-center gap-2">
+                                <span className="font-bold text-slate-400">#{idx + 1}</span>
+                                <span>{it.label}</span>
+                                {it.isCritical && <span className="text-[10px] bg-red-100 text-red-600 px-1 rounded font-bold border border-red-200">CRÍTICO</span>}
+                            </div>
+                            <button onClick={() => removeItem(idx)} className="text-slate-400 hover:text-red-500"><Trash2 size={16}/></button>
+                        </div>
+                    ))}
+                    {items.length === 0 && <p className="text-slate-400 italic text-center text-sm py-4">Agregue puntos de control arriba.</p>}
                 </div>
             </div>
 
-             <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-                <h4 className="text-sm font-bold text-slate-700 mb-4 flex items-center"><CheckSquare size={16} className="mr-2"/> Items del Checklist</h4>
-                <div className="flex gap-2 mb-4 items-end">
-                    <div className="flex-1">
-                        <label className="block text-xs font-bold text-slate-500 mb-1">Descripción del Item</label>
-                        <input className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white" placeholder="Ej. Verificar nivel de aceite" value={newItemLabel} onChange={(e) => setNewItemLabel(e.target.value)} />
-                    </div>
-                     <div className="flex items-center pb-2 px-2 bg-white border border-slate-200 rounded-lg h-[42px]">
-                         <input type="checkbox" checked={newItemCritical} onChange={(e) => setNewItemCritical(e.target.checked)} className="mr-2"/>
-                        <label className="text-sm text-slate-700 font-medium">Es Crítico</label>
-                    </div>
-                    <button onClick={handleAddItem} className="bg-slate-800 text-white px-4 py-2 rounded-lg hover:bg-slate-700 h-[42px]">Agregar</button>
-                </div>
-                 <div className="space-y-2">
-                    {items.map((item, idx) => (
-                        <div key={item.id} className="flex justify-between items-center bg-white p-3 rounded border border-slate-200">
-                             <span className="text-slate-700">{idx+1}. {item.label} {item.isCritical && '(Critico)'}</span>
-                            <button onClick={() => handleRemoveItem(item.id)} className="text-slate-400 hover:text-red-500"><Trash2 size={16}/></button>
-                        </div>
-                    ))}
-                </div>
-             </div>
-             <div className="flex justify-end pt-4">
-                 <button onClick={handleSave} className="flex items-center px-6 py-2 bg-success text-white rounded-lg hover:bg-green-600 shadow-md">
-                    <Save size={18} className="mr-2"/> Guardar Modelo
-                </button>
+            <div className="flex justify-end mt-6">
+                <button onClick={handleSave} className="bg-accent text-white px-6 py-2 rounded-lg font-bold shadow-md">Guardar Modelo</button>
             </div>
         </div>
     );
 };
 
 const ChecklistManager = () => {
-    const [view, setView] = useState<'LIST' | 'FORM'>('LIST');
-    const [selectedModel, setSelectedModel] = useState<ChecklistModel | null>(null);
     const { checklistModels, addChecklistModel, updateChecklistModel } = useMasterData();
+    const [viewMode, setViewMode] = useState<'LIST' | 'FORM'>('LIST');
+    const [selectedModel, setSelectedModel] = useState<ChecklistModel | null>(null);
 
-    const handleEdit = (m: ChecklistModel | null) => {
-        setSelectedModel(m);
-        setView('FORM');
+    const handleSave = async (data: ChecklistModel) => {
+        if (selectedModel) await updateChecklistModel(data);
+        else await addChecklistModel(data);
+        setViewMode('LIST');
     };
 
-    const handleSave = async (m: ChecklistModel) => {
-        if (selectedModel) await updateChecklistModel(m);
-        else await addChecklistModel(m);
-        setView('LIST');
-    };
+    if (viewMode === 'FORM') return <ChecklistModelForm initialData={selectedModel || undefined} onSave={handleSave} onCancel={() => setViewMode('LIST')} />;
 
-    if (view === 'FORM') return <ChecklistModelForm modelToEdit={selectedModel} onSave={handleSave} onCancel={() => setView('LIST')} />;
-    
-    // Simple List View
     return (
         <div>
-             <SectionHeader title="Modelos de Checklist" actionLabel="Nuevo Modelo" icon={CheckSquare} onAction={() => handleEdit(null)} />
-             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {checklistModels.map(model => (
-                    <div key={model.id} className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 cursor-pointer hover:border-accent" onClick={() => handleEdit(model)}>
-                        <h4 className="font-bold text-slate-800">{model.name}</h4>
-                        <p className="text-xs text-slate-500">{model.items.length} items</p>
+            <SectionHeader title="Modelos de Checklist" actionLabel="Crear Modelo" onAction={() => { setSelectedModel(null); setViewMode('FORM'); }} icon={CheckSquare} />
+            <div className="grid gap-4">
+                {checklistModels.map(m => (
+                    <div key={m.id} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex justify-between items-center hover:shadow-md transition-all">
+                        <div>
+                            <h4 className="font-bold text-slate-800">{m.name}</h4>
+                            <p className="text-sm text-slate-500">{m.assetType} {m.assetSubtype ? `(${m.assetSubtype})` : ''} • {m.items.length} items</p>
+                        </div>
+                        <button onClick={() => { setSelectedModel(m); setViewMode('FORM'); }} className="text-accent hover:bg-slate-50 p-2 rounded-lg"><Edit2 size={18}/></button>
                     </div>
                 ))}
-             </div>
+            </div>
         </div>
-    )
+    );
 };
 
-
-// --- NUMERATOR MANAGER ---
+// --- Numerator Manager ---
 
 const NumeratorManager = () => {
-    const { numerators, addNumerator, updateNumerator } = useMasterData();
+    const { numerators, updateNumerator } = useMasterData();
     const [editingId, setEditingId] = useState<string | null>(null);
-    
-    // Form State
-    const [name, setName] = useState('');
     const [prefix, setPrefix] = useState('');
-    const [currentValue, setCurrentValue] = useState('');
-    const [length, setLength] = useState('4');
-    const [assignedType, setAssignedType] = useState<DocumentType>('PURCHASE_ORDER');
+    const [current, setCurrent] = useState(0);
 
-    const handleEdit = (n: Numerator) => {
+    const startEdit = (n: Numerator) => {
         setEditingId(n.id);
-        setName(n.name);
         setPrefix(n.prefix);
-        setCurrentValue(n.currentValue.toString());
-        setLength(n.length.toString());
-        setAssignedType(n.assignedType);
+        setCurrent(n.currentValue);
     };
 
-    const handleCancel = () => {
-        setEditingId(null);
-        setName('');
-        setPrefix('');
-        setCurrentValue('');
-    };
-
-    const handleSave = async () => {
-        if (!name) {
-            alert("Complete nombre.");
-            return;
-        }
-
-        const numData: Numerator = {
-            id: editingId || `NUM-${Date.now()}`,
-            name,
-            prefix,
-            currentValue: parseInt(currentValue),
-            length: parseInt(length) || 4,
-            assignedType
-        };
-
-        try {
-            if (editingId) {
-                await updateNumerator(numData);
-            } else {
-                await addNumerator(numData);
-            }
-            handleCancel();
-        } catch (e) {
-            console.error(e);
-            alert("Error al guardar numerador");
+    const handleSave = async (id: string) => {
+        const num = numerators.find(n => n.id === id);
+        if (num) {
+            await updateNumerator({ ...num, prefix, currentValue: current });
+            setEditingId(null);
         }
     };
-
-    const docTypeOptions: {value: DocumentType, label: string}[] = [
-        { value: 'RFQ', label: 'Petición de Oferta (RFQ)' },
-        { value: 'PURCHASE_ORDER', label: 'Orden de Compra (OC)' },
-        { value: 'MAINTENANCE_ORDER', label: 'Orden de Mantenimiento (OT)' },
-        { value: 'WORK_REQUEST', label: 'Aviso de Avería / Solicitud' },
-        { value: 'STOCK_MOVEMENT', label: 'Movimiento de Stock' },
-        { value: 'MATERIAL', label: 'Maestro de Materiales' },
-        { value: 'SUPPLIER', label: 'Maestro de Proveedores' },
-        { value: 'CLIENT', label: 'Maestro de Clientes' },
-    ];
 
     return (
-        <div className="space-y-6">
-            <SectionHeader title="Gestión de Numeradores" icon={FileDigit} />
-            
-            {/* Form */}
-            <div className={`p-5 rounded-xl border transition-all ${editingId ? 'bg-yellow-50 border-yellow-200' : 'bg-slate-50 border-slate-200'}`}>
-                <h4 className={`text-sm font-bold mb-4 flex items-center ${editingId ? 'text-yellow-800' : 'text-slate-800'}`}>
-                    {editingId ? <Edit2 size={16} className="mr-2"/> : <Plus size={16} className="mr-2"/>} 
-                    {editingId ? 'Editar Numerador' : 'Crear Nuevo Numerador'}
-                </h4>
-                
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                        <label className="block text-xs font-bold text-slate-500 mb-1">Nombre / Descripción</label>
-                        <input className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white" placeholder="Ej. Orden de Compra Planta A" value={name} onChange={e => setName(e.target.value)} />
-                    </div>
-                    <div>
-                        <label className="block text-xs font-bold text-slate-500 mb-1">Funcionalidad Asignada</label>
-                        <select className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white" value={assignedType} onChange={e => setAssignedType(e.target.value as DocumentType)}>
-                            {docTypeOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-                        </select>
-                    </div>
-                    <div>
-                        <label className="block text-xs font-bold text-slate-500 mb-1">Prefijo</label>
-                        <input className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white" placeholder="Ej. OC-24-" value={prefix} onChange={e => setPrefix(e.target.value)} />
-                    </div>
-                    <div>
-                        <label className="block text-xs font-bold text-slate-500 mb-1">Último Valor Usado</label>
-                        <input type="number" className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white" placeholder="0" value={currentValue} onChange={e => setCurrentValue(e.target.value)} />
-                    </div>
-                    <div>
-                        <label className="block text-xs font-bold text-slate-500 mb-1">Longitud (Ceros)</label>
-                        <input type="number" className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white" placeholder="4" value={length} onChange={e => setLength(e.target.value)} />
-                    </div>
-                    <div className="flex items-end">
-                        <div className="flex gap-2 w-full">
-                            {editingId && <button onClick={handleCancel} className="flex-1 py-2 text-slate-500 bg-white border border-slate-300 rounded-lg hover:bg-slate-50">Cancelar</button>}
-                            <button onClick={handleSave} className="flex-1 py-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 shadow-sm font-medium">Guardar</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {/* List */}
-            <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-                <table className="w-full text-sm text-left">
-                    <thead className="bg-slate-100 text-slate-600 font-semibold border-b border-slate-200">
+        <div>
+            <SectionHeader title="Numeradores de Documentos" icon={Hash} />
+            <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm bg-white rounded-lg border border-slate-200">
+                    <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
                         <tr>
-                            <th className="px-4 py-3">Nombre</th>
-                            <th className="px-4 py-3">Funcionalidad</th>
-                            <th className="px-4 py-3">Formato Ejemplo</th>
-                            <th className="px-4 py-3 text-right">Último Nro</th>
-                            <th className="px-4 py-3 text-right">Acción</th>
+                            <th className="p-4">Documento</th>
+                            <th className="p-4">Prefijo</th>
+                            <th className="p-4">Último Valor</th>
+                            <th className="p-4 text-right">Acción</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                        {numerators.map(num => (
-                            <tr key={num.id} className="hover:bg-slate-50">
-                                <td className="px-4 py-3 font-medium text-slate-800">{num.name}</td>
-                                <td className="px-4 py-3 text-slate-600">
-                                    <span className="bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-xs">
-                                        {docTypeOptions.find(o => o.value === num.assignedType)?.label || num.assignedType}
-                                    </span>
+                        {numerators.map(n => (
+                            <tr key={n.id}>
+                                <td className="p-4 font-medium text-slate-800">{n.name}</td>
+                                <td className="p-4">
+                                    {editingId === n.id ? (
+                                        <input className="border rounded px-2 py-1 w-24" value={prefix} onChange={e => setPrefix(e.target.value)} />
+                                    ) : (
+                                        <span className="font-mono bg-slate-100 px-2 py-1 rounded">{n.prefix || '(sin)'}</span>
+                                    )}
                                 </td>
-                                <td className="px-4 py-3 font-mono text-slate-500">
-                                    {num.prefix}{String(num.currentValue + 1).padStart(num.length, '0')}
+                                <td className="p-4">
+                                    {editingId === n.id ? (
+                                        <input type="number" className="border rounded px-2 py-1 w-32" value={current} onChange={e => setCurrent(parseInt(e.target.value))} />
+                                    ) : (
+                                        <span className="font-mono">{n.currentValue}</span>
+                                    )}
                                 </td>
-                                <td className="px-4 py-3 text-right font-bold text-slate-700">{num.currentValue}</td>
-                                <td className="px-4 py-3 text-right">
-                                    <button onClick={() => handleEdit(num)} className="text-accent hover:text-blue-700 font-medium">
-                                        <Edit2 size={16} />
-                                    </button>
+                                <td className="p-4 text-right">
+                                    {editingId === n.id ? (
+                                        <div className="flex justify-end gap-2">
+                                            <button onClick={() => handleSave(n.id)} className="text-green-600 font-bold">OK</button>
+                                            <button onClick={() => setEditingId(null)} className="text-slate-400">Cancel</button>
+                                        </div>
+                                    ) : (
+                                        <button onClick={() => startEdit(n)} className="text-accent hover:text-blue-700"><Edit2 size={16}/></button>
+                                    )}
                                 </td>
                             </tr>
                         ))}
@@ -1433,10 +910,9 @@ const NumeratorManager = () => {
     );
 };
 
-
 // --- Main Component ---
 
-type Tab = 'CLIENTS' | 'SUPPLIERS' | 'ASSETS' | 'PARAMS' | 'WAREHOUSES' | 'MATERIALS' | 'CHECKLISTS' | 'NUMERATORS';
+type Tab = 'CLIENTS' | 'SUPPLIERS' | 'ASSETS' | 'PARAMS' | 'WAREHOUSES' | 'MATERIALS' | 'CHECKLISTS' | 'NUMERATORS' | 'AREAS';
 type SubTab = 'PARAM_REGIONS' | 'PARAM_UOM' | 'PARAM_TYPE_M' | 'PARAM_TYPE_V' | 'WH_CREATE' | 'WH_LOC' | 'NUM_CREATE' | 'NUM_ASSIGN';
 
 export default function MasterData() {
@@ -1494,7 +970,7 @@ export default function MasterData() {
          return <SupplierMasterView />;
 
       case 'ASSETS':
-        return <AssetMasterView />;
+        return <AssetMasterView />; 
 
       case 'PARAMS':
         const currentList = getParamList();
@@ -1578,6 +1054,9 @@ export default function MasterData() {
             </div>
         );
 
+      case 'AREAS':
+        return <AreasMasterView />;
+
       default:
         return null;
     }
@@ -1594,8 +1073,9 @@ export default function MasterData() {
           { id: 'MATERIALS', label: 'Materiales' },
           { id: 'WAREHOUSES', label: 'Almacenes' },
           { id: 'PARAMS', label: 'Parámetros' },
-          { id: 'CHECKLISTS', label: 'Modelos Checklist' },
+          { id: 'CHECKLISTS', label: 'Checklists' },
           { id: 'NUMERATORS', label: 'Numeradores' },
+          { id: 'AREAS', label: 'Áreas' },
         ].map((tab) => (
           <button
             key={tab.id}

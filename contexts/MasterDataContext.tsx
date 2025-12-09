@@ -12,7 +12,7 @@ import {
   orderBy
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { ApprovalRule, Material, Asset, MaintenanceRoutine, ChecklistModel, ChecklistExecution, Numerator, DocumentType, Warehouse, WarehouseLocation, Client, Supplier } from '../types';
+import { ApprovalRule, Material, Asset, MaintenanceRoutine, ChecklistModel, ChecklistExecution, Numerator, DocumentType, Warehouse, WarehouseLocation, Client, Supplier, User, Area, SYSTEM_MODULES, AccessLevel } from '../types';
 
 interface MasterDataContextType {
   regions: string[];
@@ -22,13 +22,21 @@ interface MasterDataContextType {
   warehouses: Warehouse[]; 
   warehouseLocations: WarehouseLocation[]; 
   suppliers: Supplier[];
-  clients: Client[]; // Added Clients List
+  clients: Client[]; 
   materials: Material[]; 
   assets: Asset[]; 
   routines: MaintenanceRoutine[]; 
   checklistModels: ChecklistModel[]; 
   checklistExecutions: ChecklistExecution[]; 
-  users: {id: string, name: string, role: string}[]; 
+  
+  // Updated User Management
+  users: User[]; 
+  areas: Area[];
+  addUser: (u: User) => Promise<void>;
+  updateUser: (u: User) => Promise<void>;
+  addArea: (a: Area) => Promise<void>;
+  deleteArea: (id: string) => Promise<void>;
+
   approvalRules: ApprovalRule[];
   numerators: Numerator[]; 
 
@@ -73,7 +81,7 @@ export const useMasterData = () => {
   return context;
 };
 
-export const MasterDataProvider = ({ children }: { children?: ReactNode }) => {
+export const MasterDataProvider = ({ children }: { children: ReactNode }) => {
   // --- REAL TIME FIRESTORE STATE ---
   const [regions, setRegions] = useState<string[]>([]);
   const [uoms, setUoms] = useState<string[]>([]);
@@ -85,13 +93,17 @@ export const MasterDataProvider = ({ children }: { children?: ReactNode }) => {
   const [warehouseLocations, setWarehouseLocations] = useState<WarehouseLocation[]>([]);
 
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-  const [clients, setClients] = useState<Client[]>([]); // Clients State
+  const [clients, setClients] = useState<Client[]>([]); 
   const [materials, setMaterials] = useState<Material[]>([]);
   const [assets, setAssets] = useState<Asset[]>([]);
   const [routines, setRoutines] = useState<MaintenanceRoutine[]>([]);
   const [checklistModels, setChecklistModels] = useState<ChecklistModel[]>([]);
   const [checklistExecutions, setChecklistExecutions] = useState<ChecklistExecution[]>([]);
-  const [users, setUsers] = useState<{id: string, name: string, role: string}[]>([]);
+  
+  // Users & Areas
+  const [users, setUsers] = useState<User[]>([]);
+  const [areas, setAreas] = useState<Area[]>([]);
+
   const [approvalRules, setApprovalRules] = useState<ApprovalRule[]>([]);
   const [numerators, setNumerators] = useState<Numerator[]>([]);
 
@@ -103,20 +115,60 @@ export const MasterDataProvider = ({ children }: { children?: ReactNode }) => {
     setUoms(['Unidad (UN)', 'Litro (LT)', 'Metro (MT)', 'Kilo (KG)', 'Metro Cuadrado (M2)', 'Metro Cúbico (M3)']);
     setMachineTypes(['Pesada', 'Liviana', 'Herramienta de Mano', 'CNC']);
     setVehicleTypes(['Utilitario', 'Camión', 'Automóvil', 'Autoelevador']);
-    
-    // Mock users for Auth simulation
-    setUsers([
-        { id: 'USR-001', name: 'Juan Perez (Comprador)', role: 'USER' },
-        { id: 'USR-002', name: 'Maria Gonzalez (Gerente)', role: 'ADMIN' },
-        { id: 'USR-003', name: 'Carlos Lopez (Jefe Planta)', role: 'MAINTENANCE' }
-    ]);
   }, []);
 
   // --- FIRESTORE SUBSCRIPTIONS ---
 
+  // USERS Subscription
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, 'users'), (snap) => {
+        if(snap.empty) {
+            // Create default admin if empty
+            const adminPermissions = SYSTEM_MODULES.reduce((acc, m) => {
+                acc[m.id] = 'ADMIN';
+                return acc;
+            }, {} as Record<string, AccessLevel>);
+
+            const admin: User = { 
+                id: 'USR-ADMIN', 
+                dni: '00000000', 
+                firstName: 'Admin', 
+                lastName: 'System', 
+                email: 'admin@system.com', 
+                legajo: 'ADM-001', 
+                role: 'ADMIN' as any, 
+                permissions: adminPermissions, // All permissions ADMIN
+                profile: 'Admin',
+                areaId: 'AREA-ADM'
+            };
+            setDoc(doc(db, 'users', admin.id), admin);
+        }
+        setUsers(snap.docs.map(d => ({ id: d.id, ...d.data() } as User)));
+    });
+    return () => unsub();
+  }, []);
+
+  // AREAS Subscription (Mocked via Firestore or Local defaults if empty)
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, 'areas'), (snap) => {
+        if (snap.empty) {
+            const defaults = [
+                { id: 'AREA-ADM', name: 'Administración' },
+                { id: 'AREA-COM', name: 'Comercial / Ventas' },
+                { id: 'AREA-PROD', name: 'Producción' },
+                { id: 'AREA-MANT', name: 'Mantenimiento' },
+                { id: 'AREA-LOG', name: 'Logística / Almacén' },
+                { id: 'AREA-IT', name: 'Tecnología (IT)' },
+            ];
+            defaults.forEach(a => setDoc(doc(db, 'areas', a.id), a));
+        }
+        setAreas(snap.docs.map(d => ({ id: d.id, ...d.data() } as Area)));
+    });
+    return () => unsub();
+  }, []);
+
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'warehouses'), (snap) => {
-        // If empty, create default
         if (snap.empty) {
             const def = { id: 'WH-001', name: 'Depósito Central', responsible: 'Jefe Depósito' };
             setDoc(doc(db, 'warehouses', def.id), def);
@@ -196,9 +248,7 @@ export const MasterDataProvider = ({ children }: { children?: ReactNode }) => {
         const nums = snap.docs.map(d => ({ id: d.id, ...d.data() } as Numerator));
         if (nums.length === 0) {
             const defaults: Numerator[] = [
-                // Configuración OC ajustada para iniciar en 4900000000
                 { id: 'NUM-001', name: 'Orden de Compra General', prefix: '', currentValue: 4899999999, length: 10, assignedType: 'PURCHASE_ORDER' },
-                // Configuración RFQ ajustada para iniciar en 10000000
                 { id: 'NUM-002', name: 'Petición de Oferta (RFQ)', prefix: '', currentValue: 9999999, length: 8, assignedType: 'RFQ' },
                 { id: 'NUM-003', name: 'Orden Mantenimiento', prefix: 'OT-', currentValue: 1000, length: 6, assignedType: 'MAINTENANCE_ORDER' },
                 { id: 'NUM-004', name: 'Aviso de Avería', prefix: 'AVISO-', currentValue: 500, length: 4, assignedType: 'WORK_REQUEST' },
@@ -208,28 +258,6 @@ export const MasterDataProvider = ({ children }: { children?: ReactNode }) => {
             ];
             defaults.forEach(n => setDoc(doc(db, 'numerators', n.id), n));
         } else {
-            // Migración automática RFQ
-            const rfqNum = nums.find(n => n.id === 'NUM-002');
-            if (rfqNum && rfqNum.prefix === 'RFQ-') {
-                 console.log("Migrando Numerador RFQ al rango 10000000...");
-                 updateDoc(doc(db, 'numerators', 'NUM-002'), {
-                     prefix: '',
-                     currentValue: 9999999, 
-                     length: 8
-                 });
-            }
-
-            // Migración automática OC (Purchase Order)
-            const poNum = nums.find(n => n.id === 'NUM-001');
-            if (poNum && poNum.prefix === 'OC-') {
-                 console.log("Migrando Numerador OC al rango 4900000000...");
-                 updateDoc(doc(db, 'numerators', 'NUM-001'), {
-                     prefix: '',
-                     currentValue: 4899999999, // El próximo será 4900000000
-                     length: 10
-                 });
-            }
-
             setNumerators(nums);
         }
     });
@@ -244,6 +272,22 @@ export const MasterDataProvider = ({ children }: { children?: ReactNode }) => {
   const addMachineType = (val: string) => setMachineTypes(prev => [...prev, val]);
   const addVehicleType = (val: string) => setVehicleTypes(prev => [...prev, val]);
   
+  // User Actions
+  const addUser = async (u: User) => {
+      await setDoc(doc(db, 'users', u.id), u);
+  };
+  const updateUser = async (u: User) => {
+      await updateDoc(doc(db, 'users', u.id), { ...u });
+  };
+  
+  // Area Actions
+  const addArea = async (a: Area) => {
+      await setDoc(doc(db, 'areas', a.id), a);
+  };
+  const deleteArea = async (id: string) => {
+      await deleteDoc(doc(db, 'areas', id));
+  };
+
   // Warehouse Actions
   const addWarehouse = async (val: Warehouse) => {
       await setDoc(doc(db, 'warehouses', val.id), val);
@@ -340,13 +384,14 @@ export const MasterDataProvider = ({ children }: { children?: ReactNode }) => {
       warehouses,
       warehouseLocations,
       suppliers,
-      clients, // Exposed
+      clients, 
       materials,
       assets,
       routines,
       checklistModels,
       checklistExecutions,
       users,
+      areas,
       approvalRules,
       numerators,
       addRegion,
@@ -370,7 +415,11 @@ export const MasterDataProvider = ({ children }: { children?: ReactNode }) => {
       deleteApprovalRule,
       addNumerator,
       updateNumerator,
-      getNextId
+      getNextId,
+      addUser,
+      updateUser,
+      addArea,
+      deleteArea
     }}>
       {children}
     </MasterDataContext.Provider>

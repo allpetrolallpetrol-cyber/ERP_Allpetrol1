@@ -1,5 +1,7 @@
+
 import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
+import { getAuth } from "firebase/auth";
 
 // Helper para leer variables de entorno de forma segura o usar fallback
 const getEnv = (key: string, fallback: string) => {
@@ -23,3 +25,4 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
+export const auth = getAuth(app);

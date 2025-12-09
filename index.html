@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ArgERP System</title>
+    <title>PyME ERP</title>
     <!-- Tailwind CDN is kept for simplicity. In a production build, postcss installation is recommended. -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -11,12 +11,29 @@
         theme: {
           extend: {
             colors: {
-              primary: '#0f172a', // Slate 900
-              secondary: '#334155', // Slate 700
-              accent: '#3b82f6', // Blue 500
-              success: '#22c55e',
+              primary: '#18181b', // Zinc 900
+              secondary: '#3f3f46', // Zinc 700
+              accent: '#0d9488', // Teal 600
+              accentHover: '#0f766e', // Teal 700
+              surface: '#ffffff',
+              background: '#fafafa', // Zinc 50
+              success: '#10b981',
               warning: '#f59e0b',
               danger: '#ef4444',
+            },
+            animation: {
+              'float': 'float 6s ease-in-out infinite',
+              'fade-out': 'fadeOut 0.5s ease-out forwards',
+            },
+            keyframes: {
+              float: {
+                '0%, 100%': { transform: 'translateY(0)' },
+                '50%': { transform: 'translateY(-20px)' },
+              },
+              fadeOut: {
+                '0%': { opacity: '1' },
+                '100%': { opacity: '0', visibility: 'hidden' },
+              }
             }
           }
         }
@@ -29,14 +46,14 @@
         height: 8px;
       }
       ::-webkit-scrollbar-track {
-        background: #f1f5f9; 
+        background: #f4f4f5; 
       }
       ::-webkit-scrollbar-thumb {
-        background: #cbd5e1; 
+        background: #d4d4d8; 
         border-radius: 4px;
       }
       ::-webkit-scrollbar-thumb:hover {
-        background: #94a3b8; 
+        background: #a1a1aa; 
       }
     </style>
 <script type="importmap">
@@ -55,7 +72,7 @@
 }
 </script>
 </head>
-  <body class="bg-slate-50 text-slate-900 font-sans antialiased">
+  <body class="bg-background text-zinc-900 font-sans antialiased">
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
   </body>

@@ -6,6 +6,31 @@ export enum UserRole {
   WAREHOUSE = 'WAREHOUSE'
 }
 
+export interface Area {
+    id: string;
+    name: string;
+}
+
+// --- PERMISSIONS SYSTEM ---
+
+export type AccessLevel = 'NONE' | 'VIEW' | 'CREATE' | 'EDIT' | 'ADMIN';
+
+export const ACCESS_LEVELS: { value: AccessLevel, label: string, color: string }[] = [
+    { value: 'NONE', label: 'Sin Acceso (Oculto)', color: 'text-slate-400' },
+    { value: 'VIEW', label: 'Solo Lectura', color: 'text-blue-600' },
+    { value: 'CREATE', label: 'Crear / Operar', color: 'text-green-600' },
+    { value: 'EDIT', label: 'Editar / Gestionar', color: 'text-orange-600' },
+    { value: 'ADMIN', label: 'Control Total', color: 'text-purple-600 font-bold' },
+];
+
+export const SYSTEM_MODULES = [
+    { id: 'COMMERCIAL', label: 'Gestión Comercial', description: 'Compras, Ventas y Proveedores' },
+    { id: 'MASTER_DATA', label: 'Datos Maestros', description: 'ABM de Clientes, Artículos y Activos' },
+    { id: 'MAINTENANCE', label: 'Mantenimiento', description: 'Órdenes, Preventivos y Checklists' },
+    { id: 'WAREHOUSE', label: 'Almacenes', description: 'Stock, Movimientos e Inventario' },
+    { id: 'USERS', label: 'Admin. Usuarios', description: 'Gestión de perfiles y accesos' },
+];
+
 export interface User {
   id: string;
   dni: string;
@@ -13,8 +38,11 @@ export interface User {
   firstName: string;
   lastName: string;
   email: string;
-  role: UserRole;
+  role: UserRole; 
+  permissions: Record<string, AccessLevel>; 
+  areaId?: string; 
   profile: string;
+  avatarUrl?: string; // New: Supports URL or Base64
 }
 
 // System Configuration
@@ -45,7 +73,8 @@ export enum OrderStatus {
   PENDING_APPROVAL = 'Pendiente Aprobación',
   APPROVED = 'Aprobado',
   REJECTED = 'Rechazado',
-  CONVERTED_TO_PO = 'OC Generada'
+  CONVERTED_TO_PO = 'OC Generada',
+  CLOSED = 'Cerrada' // Final state for fully adjudicated RFQs
 }
 
 export interface RFQItem {

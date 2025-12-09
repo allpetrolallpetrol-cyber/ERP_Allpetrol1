@@ -1,5 +1,5 @@
 {
-  "name": "Copy of ArgERP System",
+  "name": "PyME ERP System",
   "description": "A comprehensive ERP system tailored for Argentine business logic, featuring Commercial, Master Data, Maintenance (Kanban), Warehouse, and User management modules.",
   "requestFramePermissions": [
     "camera"

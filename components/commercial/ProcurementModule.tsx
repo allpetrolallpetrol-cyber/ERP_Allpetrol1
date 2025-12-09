@@ -1,14 +1,15 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Plus, 
   FileText, 
   ShoppingBag, 
   Users, 
-  Settings
+  Settings,
+  Lock
 } from 'lucide-react';
 import { useMasterData } from '../../contexts/MasterDataContext';
-import { RFQ, OrderStatus } from '../../types';
+import { RFQ, OrderStatus, UserRole } from '../../types';
 import { db } from '../../lib/firebase';
 import { doc, setDoc, updateDoc, collection, onSnapshot, query } from 'firebase/firestore';
 
@@ -20,11 +21,36 @@ import { PurchaseOrdersList } from './PurchaseOrdersList';
 import { ApprovalSettings } from './ApprovalSettings';
 
 export const ProcurementModule = () => {
-    const { getNextId } = useMasterData();
+    const { getNextId, users } = useMasterData();
     const [activeTab, setActiveTab] = useState<'MANAGE_RFQ' | 'APPROVAL' | 'PO_LIST' | 'SETTINGS'>('MANAGE_RFQ');
     const [rfqs, setRfqs] = useState<RFQ[]>([]); 
     const [showNewForm, setShowNewForm] = useState(false);
     const [draftToEdit, setDraftToEdit] = useState<RFQ | undefined>(undefined);
+
+    // --- AUTH MOCK ---
+    // En producción esto vendría de un AuthContext real.
+    // Usamos la misma lógica que en el Layout para determinar el usuario activo.
+    const currentUser = users.find(u => u.id === 'USR-ADMIN') || users[0];
+    
+    // Calcular Permisos para este módulo
+    const permissions = useMemo(() => {
+        if (!currentUser) return { canView: false, canCreate: false, canApprove: false, canConfig: false };
+        
+        // Si es Admin Global, tiene todo
+        if (currentUser.role === UserRole.ADMIN) {
+            return { canView: true, canCreate: true, canApprove: true, canConfig: true };
+        }
+
+        const level = currentUser.permissions?.['COMMERCIAL'] || 'NONE';
+
+        return {
+            canView: level !== 'NONE',
+            canCreate: ['CREATE', 'EDIT', 'ADMIN'].includes(level),
+            canEdit: ['EDIT', 'ADMIN'].includes(level),
+            canConfig: level === 'ADMIN' // Solo ADMIN del módulo ve Configuración
+        };
+    }, [currentUser]);
+
 
     // FETCH RFQs FROM DB
     useEffect(() => {
@@ -41,7 +67,6 @@ export const ProcurementModule = () => {
     const pendingApprovals = rfqs.filter(r => r.status === OrderStatus.PENDING_APPROVAL).length;
     
     // Filtro estricto para RFQs activas: Borrador, Enviado, Cotizado.
-    // Una vez aprobada (CONVERTED_TO_PO) desaparece de este conteo y del listado de gestión.
     const activeRfqs = rfqs.filter(r => [OrderStatus.DRAFT, OrderStatus.SENT, OrderStatus.QUOTED].includes(r.status)).length;
 
     const handleCreateRFQ = async (newRfq: RFQ) => {
@@ -90,29 +115,28 @@ export const ProcurementModule = () => {
         // 2. Update the Original RFQ (Remove adjudicated items)
         const remainingItems = originalRfq.items.filter(i => !itemIds.includes(i.materialId));
         
-        // Save New Order
+        // Save New Order (The PO to be approved)
         await setDoc(doc(db, 'rfqs', newOrder.id), newOrder);
 
         if (remainingItems.length > 0) {
-            // Update original
+            // Still has items, just update content
             await updateDoc(doc(db, 'rfqs', originalRfq.id), { items: remainingItems });
         } else {
-            // Original RFQ is fully consumed
-            await updateDoc(doc(db, 'rfqs', originalRfq.id), { items: [] });
+            // Fully consumed -> Change status to CLOSED so it leaves the tracking list
+            await updateDoc(doc(db, 'rfqs', originalRfq.id), { items: [], status: OrderStatus.CLOSED });
         }
 
-        alert(`Items adjudicados correctamente. Se generó la orden ${poNumber} pendiente de aprobación.`);
+        alert(`Items adjudicados correctamente. Se generó la orden ${poNumber} pendiente de aprobación. La RFQ original ha sido actualizada.`);
     };
     
     // Approval Handlers
     const handleApprove = async (rfq: RFQ) => {
-        // Al aprobar, generamos un número de OC oficial y guardamos el número de RFQ anterior como referencia
-        const newPoNumber = await getNextId('PURCHASE_ORDER');
+        // Al aprobar, generamos un número de OC oficial (si no tuviera) y guardamos la referencia
+        const newPoNumber = rfq.number || await getNextId('PURCHASE_ORDER');
 
         const approved = { 
             ...rfq, 
-            number: newPoNumber, // El documento pasa a tener número de OC
-            relatedRfqNumber: rfq.number, // Guardamos el número de RFQ viejo
+            number: newPoNumber, 
             status: OrderStatus.CONVERTED_TO_PO 
         };
 
@@ -137,13 +161,22 @@ export const ProcurementModule = () => {
     return (
         <div className="space-y-6 animate-in fade-in">
              <div className="flex justify-between items-center">
-                <h2 className="text-2xl font-bold text-slate-800">Gestión de Compras</h2>
-                <button 
-                    onClick={() => setShowNewForm(true)} 
-                    className="bg-accent text-white px-4 py-2 rounded-lg font-medium shadow-md hover:bg-blue-600 flex items-center"
-                >
-                    <Plus size={18} className="mr-2"/> Crear Petición (RFQ)
-                </button>
+                <div>
+                    <h2 className="text-2xl font-bold text-slate-800">Gestión de Compras</h2>
+                    <p className="text-xs text-slate-400 mt-1">
+                        Permiso Actual: <span className="font-bold uppercase text-slate-600">{currentUser?.permissions?.['COMMERCIAL'] || currentUser?.role}</span>
+                    </p>
+                </div>
+                
+                {/* BUTTON PROTECTED: Only visible if CREATE, EDIT or ADMIN */}
+                {permissions.canCreate && (
+                    <button 
+                        onClick={() => setShowNewForm(true)} 
+                        className="bg-accent text-white px-4 py-2 rounded-lg font-medium shadow-md hover:bg-blue-600 flex items-center"
+                    >
+                        <Plus size={18} className="mr-2"/> Crear Petición (RFQ)
+                    </button>
+                )}
              </div>
 
              {/* Dashboard Navigation Cards */}
@@ -167,17 +200,25 @@ export const ProcurementModule = () => {
                     <span className="font-semibold text-slate-700">Órdenes de Compra</span>
                  </button>
 
-                 <button onClick={() => setActiveTab('SETTINGS')} className={`p-4 rounded-xl border flex flex-col items-center justify-center transition-all ${activeTab === 'SETTINGS' ? 'bg-white border-slate-800 shadow-md ring-1 ring-slate-800' : 'bg-white border-slate-200 hover:bg-slate-50'}`}>
-                    <Settings size={24} className={`mb-2 ${activeTab === 'SETTINGS' ? 'text-slate-800' : 'text-slate-400'}`} />
-                    <span className="font-semibold text-slate-700">Configuración</span>
-                 </button>
+                 {/* TAB PROTECTED: Only visible if ADMIN */}
+                 {permissions.canConfig ? (
+                     <button onClick={() => setActiveTab('SETTINGS')} className={`p-4 rounded-xl border flex flex-col items-center justify-center transition-all ${activeTab === 'SETTINGS' ? 'bg-white border-slate-800 shadow-md ring-1 ring-slate-800' : 'bg-white border-slate-200 hover:bg-slate-50'}`}>
+                        <Settings size={24} className={`mb-2 ${activeTab === 'SETTINGS' ? 'text-slate-800' : 'text-slate-400'}`} />
+                        <span className="font-semibold text-slate-700">Configuración</span>
+                     </button>
+                 ) : (
+                     <div className="p-4 rounded-xl border border-slate-100 flex flex-col items-center justify-center bg-slate-50 opacity-60 cursor-not-allowed" title="Requiere acceso Administrador">
+                        <Lock size={24} className="mb-2 text-slate-300" />
+                        <span className="font-semibold text-slate-400">Configuración</span>
+                     </div>
+                 )}
              </div>
 
              <div className="min-h-[400px]">
                 {activeTab === 'MANAGE_RFQ' && <RFQManagement rfqs={rfqs} onUpdate={handleUpdateRFQ} onEditDraft={handleEditDraft} onSplitAdjudicate={handleSplitAdjudicate} />}
                 {activeTab === 'APPROVAL' && <ApprovalTray rfqs={rfqs} onApprove={handleApprove} onRevert={handleRevert} />}
                 {activeTab === 'PO_LIST' && <PurchaseOrdersList rfqs={rfqs} />}
-                {activeTab === 'SETTINGS' && <ApprovalSettings />}
+                {activeTab === 'SETTINGS' && permissions.canConfig && <ApprovalSettings />}
              </div>
         </div>
     );
