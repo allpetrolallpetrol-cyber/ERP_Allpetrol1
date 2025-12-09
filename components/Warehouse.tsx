@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
-import { ArrowDownLeft, ArrowUpRight, Search, RefreshCw } from 'lucide-react';
+
+import React, { useState, useMemo } from 'react';
+import { ArrowDownLeft, ArrowUpRight, Search, RefreshCw, Lock } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 
 const StockTable = () => (
   <div className="overflow-x-auto">
@@ -37,7 +39,7 @@ const StockTable = () => (
 );
 
 const MovementForm = ({ type }: { type: 'IN' | 'OUT' | 'ADJUST' }) => (
-  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in fade-in">
     <div className="col-span-1 md:col-span-2">
       <h4 className="text-md font-semibold text-slate-800 mb-4 border-b pb-2">
         {type === 'IN' && 'Ingreso de Mercadería'}
@@ -101,10 +103,32 @@ const MovementForm = ({ type }: { type: 'IN' | 'OUT' | 'ADJUST' }) => (
 );
 
 export default function Warehouse() {
+  const { userProfile } = useAuth();
   const [activeTab, setActiveTab] = useState<'STOCK' | 'IN' | 'OUT' | 'ADJUST'>('STOCK');
 
+  const permissions = useMemo(() => {
+      const perms = userProfile?.permissions || {};
+      const isAdmin = userProfile?.role === 'ADMIN';
+      
+      return {
+          viewStock: isAdmin || perms['WAREHOUSE_VIEW'] !== 'NONE',
+          operations: isAdmin || ['CREATE', 'EDIT', 'ADMIN'].includes(perms['WAREHOUSE_OPERATIONS'] || 'NONE')
+      };
+  }, [userProfile]);
+
+  // Si no tiene permiso ni de ver stock, bloqueamos el componente entero
+  if (!permissions.viewStock) {
+      return (
+          <div className="h-full flex flex-col items-center justify-center text-slate-400 animate-in fade-in">
+              <Lock size={64} className="mb-4 text-slate-300"/>
+              <h2 className="text-xl font-bold text-slate-600">Acceso Restringido</h2>
+              <p>No tiene permisos para visualizar el módulo de Almacenes.</p>
+          </div>
+      );
+  }
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-in fade-in">
       {/* Quick Actions */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <button 
@@ -114,35 +138,41 @@ export default function Warehouse() {
             <Search size={24} className="mb-2" />
             <span className="font-semibold">Consultar Stock</span>
         </button>
-        <button 
-            onClick={() => setActiveTab('IN')}
-            className={`p-4 rounded-xl border flex flex-col items-center justify-center transition-all ${activeTab === 'IN' ? 'bg-white border-green-500 shadow-md text-green-600' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}
-        >
-            <ArrowDownLeft size={24} className="mb-2" />
-            <span className="font-semibold">Ingreso (Entrada)</span>
-        </button>
-        <button 
-            onClick={() => setActiveTab('OUT')}
-            className={`p-4 rounded-xl border flex flex-col items-center justify-center transition-all ${activeTab === 'OUT' ? 'bg-white border-orange-500 shadow-md text-orange-600' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}
-        >
-            <ArrowUpRight size={24} className="mb-2" />
-            <span className="font-semibold">Salida (Consumo)</span>
-        </button>
-        <button 
-            onClick={() => setActiveTab('ADJUST')}
-            className={`p-4 rounded-xl border flex flex-col items-center justify-center transition-all ${activeTab === 'ADJUST' ? 'bg-white border-blue-500 shadow-md text-blue-600' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}
-        >
-            <RefreshCw size={24} className="mb-2" />
-            <span className="font-semibold">Ajustes</span>
-        </button>
+        
+        {/* Operations Buttons - Protected (Hidden if View Only) */}
+        {permissions.operations && (
+            <>
+                <button 
+                    onClick={() => setActiveTab('IN')}
+                    className={`p-4 rounded-xl border flex flex-col items-center justify-center transition-all ${activeTab === 'IN' ? 'bg-white border-green-500 shadow-md text-green-600' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}
+                >
+                    <ArrowDownLeft size={24} className="mb-2" />
+                    <span className="font-semibold">Ingreso (Entrada)</span>
+                </button>
+                <button 
+                    onClick={() => setActiveTab('OUT')}
+                    className={`p-4 rounded-xl border flex flex-col items-center justify-center transition-all ${activeTab === 'OUT' ? 'bg-white border-orange-500 shadow-md text-orange-600' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}
+                >
+                    <ArrowUpRight size={24} className="mb-2" />
+                    <span className="font-semibold">Salida (Consumo)</span>
+                </button>
+                <button 
+                    onClick={() => setActiveTab('ADJUST')}
+                    className={`p-4 rounded-xl border flex flex-col items-center justify-center transition-all ${activeTab === 'ADJUST' ? 'bg-white border-blue-500 shadow-md text-blue-600' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}
+                >
+                    <RefreshCw size={24} className="mb-2" />
+                    <span className="font-semibold">Ajustes</span>
+                </button>
+            </>
+        )}
       </div>
 
       {/* Main Content Area */}
       <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 min-h-[400px]">
         {activeTab === 'STOCK' && <StockTable />}
-        {activeTab === 'IN' && <MovementForm type="IN" />}
-        {activeTab === 'OUT' && <MovementForm type="OUT" />}
-        {activeTab === 'ADJUST' && <MovementForm type="ADJUST" />}
+        {activeTab === 'IN' && permissions.operations && <MovementForm type="IN" />}
+        {activeTab === 'OUT' && permissions.operations && <MovementForm type="OUT" />}
+        {activeTab === 'ADJUST' && permissions.operations && <MovementForm type="ADJUST" />}
       </div>
     </div>
   );

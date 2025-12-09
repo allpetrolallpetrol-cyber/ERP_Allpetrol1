@@ -16,19 +16,34 @@ export interface Area {
 export type AccessLevel = 'NONE' | 'VIEW' | 'CREATE' | 'EDIT' | 'ADMIN';
 
 export const ACCESS_LEVELS: { value: AccessLevel, label: string, color: string }[] = [
-    { value: 'NONE', label: 'Sin Acceso (Oculto)', color: 'text-slate-400' },
+    { value: 'NONE', label: 'Sin Acceso', color: 'text-slate-400' },
     { value: 'VIEW', label: 'Solo Lectura', color: 'text-blue-600' },
-    { value: 'CREATE', label: 'Crear / Operar', color: 'text-green-600' },
-    { value: 'EDIT', label: 'Editar / Gestionar', color: 'text-orange-600' },
-    { value: 'ADMIN', label: 'Control Total', color: 'text-purple-600 font-bold' },
+    { value: 'CREATE', label: 'Operador (Crear)', color: 'text-green-600' },
+    { value: 'EDIT', label: 'Gestor (Editar)', color: 'text-orange-600' },
+    { value: 'ADMIN', label: 'Total (Admin)', color: 'text-purple-600 font-bold' },
 ];
 
+// New Granular Structure
 export const SYSTEM_MODULES = [
-    { id: 'COMMERCIAL', label: 'Gestión Comercial', description: 'Compras, Ventas y Proveedores' },
-    { id: 'MASTER_DATA', label: 'Datos Maestros', description: 'ABM de Clientes, Artículos y Activos' },
-    { id: 'MAINTENANCE', label: 'Mantenimiento', description: 'Órdenes, Preventivos y Checklists' },
-    { id: 'WAREHOUSE', label: 'Almacenes', description: 'Stock, Movimientos e Inventario' },
-    { id: 'USERS', label: 'Admin. Usuarios', description: 'Gestión de perfiles y accesos' },
+    // Comercial
+    { id: 'COMMERCIAL_PROCUREMENT', category: 'Comercial', label: 'Compras y Proveedores', description: 'RFQ, Cotizaciones y Órdenes de Compra' },
+    { id: 'COMMERCIAL_SALES', category: 'Comercial', label: 'Ventas y Clientes', description: 'Pedidos de venta y facturación' },
+    { id: 'COMMERCIAL_CONFIG', category: 'Comercial', label: 'Configuración y Reglas', description: 'Esquemas de liberación y parámetros' },
+    
+    // Datos Maestros
+    { id: 'MASTER_DATA_GENERAL', category: 'Datos Maestros', label: 'ABM General', description: 'Gestión de Artículos, Activos y Tablas' },
+    
+    // Mantenimiento
+    { id: 'MAINTENANCE_DASHBOARD', category: 'Mantenimiento', label: 'Tablero de Órdenes', description: 'Ver y gestionar órdenes de trabajo (Kanban/Lista)' },
+    { id: 'MAINTENANCE_PLANNER', category: 'Mantenimiento', label: 'Planificador PM', description: 'Generación masiva de preventivos' },
+    { id: 'MAINTENANCE_EXECUTION', category: 'Mantenimiento', label: 'Ejecución Técnica', description: 'Carga de Avisos y Checklists (Técnicos)' },
+    
+    // Almacenes
+    { id: 'WAREHOUSE_VIEW', category: 'Almacenes', label: 'Consulta de Stock', description: 'Visualizar inventario y ubicaciones' },
+    { id: 'WAREHOUSE_OPERATIONS', category: 'Almacenes', label: 'Operaciones de Stock', description: 'Ingresos, Egresos y Ajustes' },
+    
+    // Admin
+    { id: 'USERS_ADMIN', category: 'Administración', label: 'Usuarios y Seguridad', description: 'Gestión de perfiles y accesos' },
 ];
 
 export interface User {
@@ -42,7 +57,8 @@ export interface User {
   permissions: Record<string, AccessLevel>; 
   areaId?: string; 
   profile: string;
-  avatarUrl?: string; // New: Supports URL or Base64
+  avatarUrl?: string;
+  isApprover?: boolean; // Nuevo campo para marcar si puede aprobar compras
 }
 
 // System Configuration

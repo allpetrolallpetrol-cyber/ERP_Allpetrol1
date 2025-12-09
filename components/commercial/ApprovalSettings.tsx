@@ -9,6 +9,9 @@ export const ApprovalSettings = () => {
     const [max, setMax] = useState('');
     const [approver, setApprover] = useState('');
 
+    // Filter users who are marked as approvers
+    const approverUsers = users.filter(u => u.isApprover);
+
     const handleAdd = () => {
         if (!min || !max || !approver) return;
         addApprovalRule({
@@ -43,8 +46,15 @@ export const ApprovalSettings = () => {
                         <label className="block text-xs font-semibold text-slate-500 mb-1">Aprobador</label>
                         <select className="w-full px-3 py-2 border rounded bg-white" value={approver} onChange={(e) => setApprover(e.target.value)}>
                             <option value="">Seleccionar...</option>
-                            {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                            {approverUsers.map(u => (
+                                <option key={u.id} value={u.id}>
+                                    {u.lastName}, {u.firstName}
+                                </option>
+                            ))}
                         </select>
+                        {approverUsers.length === 0 && (
+                            <p className="text-[10px] text-red-500 mt-1">No hay usuarios marcados como aprobadores.</p>
+                        )}
                     </div>
                     <button onClick={handleAdd} className="bg-slate-900 text-white px-4 py-2 rounded hover:bg-slate-800">Agregar</button>
                 </div>
@@ -59,13 +69,21 @@ export const ApprovalSettings = () => {
                     </tr>
                 </thead>
                 <tbody>
-                    {approvalRules.map(rule => (
-                        <tr key={rule.id} className="border-b">
-                            <td className="p-4">${rule.minAmount} - ${rule.maxAmount}</td>
-                            <td className="p-4">{users.find(u => u.id === rule.approverId)?.name}</td>
-                            <td className="p-4 text-right"><button onClick={() => deleteApprovalRule(rule.id)} className="text-red-500"><Trash2 size={16}/></button></td>
-                        </tr>
-                    ))}
+                    {approvalRules.map(rule => {
+                        const approverUser = users.find(u => u.id === rule.approverId);
+                        return (
+                            <tr key={rule.id} className="border-b">
+                                <td className="p-4">${rule.minAmount} - ${rule.maxAmount}</td>
+                                <td className="p-4">
+                                    {approverUser ? `${approverUser.lastName}, ${approverUser.firstName}` : <span className="text-red-400 italic">Usuario eliminado</span>}
+                                </td>
+                                <td className="p-4 text-right"><button onClick={() => deleteApprovalRule(rule.id)} className="text-red-500"><Trash2 size={16}/></button></td>
+                            </tr>
+                        );
+                    })}
+                    {approvalRules.length === 0 && (
+                        <tr><td colSpan={3} className="p-4 text-center text-slate-400">No hay reglas definidas.</td></tr>
+                    )}
                 </tbody>
             </table>
         </div>

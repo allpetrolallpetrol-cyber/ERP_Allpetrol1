@@ -12,6 +12,7 @@ import { useMasterData } from '../../contexts/MasterDataContext';
 import { RFQ, OrderStatus, UserRole } from '../../types';
 import { db } from '../../lib/firebase';
 import { doc, setDoc, updateDoc, collection, onSnapshot, query } from 'firebase/firestore';
+import { useAuth } from '../../contexts/AuthContext';
 
 // Sub Components
 import { NewRFQForm } from './NewRFQForm';
@@ -21,35 +22,32 @@ import { PurchaseOrdersList } from './PurchaseOrdersList';
 import { ApprovalSettings } from './ApprovalSettings';
 
 export const ProcurementModule = () => {
-    const { getNextId, users } = useMasterData();
+    const { getNextId } = useMasterData();
+    const { userProfile } = useAuth();
     const [activeTab, setActiveTab] = useState<'MANAGE_RFQ' | 'APPROVAL' | 'PO_LIST' | 'SETTINGS'>('MANAGE_RFQ');
     const [rfqs, setRfqs] = useState<RFQ[]>([]); 
     const [showNewForm, setShowNewForm] = useState(false);
     const [draftToEdit, setDraftToEdit] = useState<RFQ | undefined>(undefined);
 
-    // --- AUTH MOCK ---
-    // En producción esto vendría de un AuthContext real.
-    // Usamos la misma lógica que en el Layout para determinar el usuario activo.
-    const currentUser = users.find(u => u.id === 'USR-ADMIN') || users[0];
-    
-    // Calcular Permisos para este módulo
+    // Calcular Permisos Granulares
     const permissions = useMemo(() => {
-        if (!currentUser) return { canView: false, canCreate: false, canApprove: false, canConfig: false };
+        if (!userProfile) return { canView: false, canCreate: false, canApprove: false, canConfig: false };
         
-        // Si es Admin Global, tiene todo
-        if (currentUser.role === UserRole.ADMIN) {
-            return { canView: true, canCreate: true, canApprove: true, canConfig: true };
-        }
+        const isAdmin = userProfile.role === UserRole.ADMIN;
+        const perms = userProfile.permissions || {};
 
-        const level = currentUser.permissions?.['COMMERCIAL'] || 'NONE';
+        // Permisos específicos por funcionalidad
+        const procLevel = perms['COMMERCIAL_PROCUREMENT'] || 'NONE';
+        const configLevel = perms['COMMERCIAL_CONFIG'] || 'NONE';
 
         return {
-            canView: level !== 'NONE',
-            canCreate: ['CREATE', 'EDIT', 'ADMIN'].includes(level),
-            canEdit: ['EDIT', 'ADMIN'].includes(level),
-            canConfig: level === 'ADMIN' // Solo ADMIN del módulo ve Configuración
+            canView: isAdmin || procLevel !== 'NONE',
+            canCreate: isAdmin || ['CREATE', 'EDIT', 'ADMIN'].includes(procLevel),
+            canEdit: isAdmin || ['EDIT', 'ADMIN'].includes(procLevel),
+            // Configuración habilitada si tiene cualquier permiso > NONE en COMMERCIAL_CONFIG
+            canConfig: isAdmin || configLevel !== 'NONE'
         };
-    }, [currentUser]);
+    }, [userProfile]);
 
 
     // FETCH RFQs FROM DB
@@ -164,7 +162,12 @@ export const ProcurementModule = () => {
                 <div>
                     <h2 className="text-2xl font-bold text-slate-800">Gestión de Compras</h2>
                     <p className="text-xs text-slate-400 mt-1">
-                        Permiso Actual: <span className="font-bold uppercase text-slate-600">{currentUser?.permissions?.['COMMERCIAL'] || currentUser?.role}</span>
+                        Permisos: 
+                        <span className={`ml-1 font-bold uppercase ${permissions.canCreate ? 'text-green-600' : 'text-slate-400'}`}>
+                            {permissions.canCreate ? 'Operador' : 'Lectura'}
+                        </span>
+                        {permissions.canConfig && <span className="ml-2 text-slate-300">|</span>}
+                        {permissions.canConfig && <span className="ml-2 font-bold uppercase text-purple-600">Configuración</span>}
                     </p>
                 </div>
                 
@@ -200,14 +203,14 @@ export const ProcurementModule = () => {
                     <span className="font-semibold text-slate-700">Órdenes de Compra</span>
                  </button>
 
-                 {/* TAB PROTECTED: Only visible if ADMIN */}
+                 {/* TAB PROTECTED: Visible if COMMERCIAL_CONFIG != NONE */}
                  {permissions.canConfig ? (
                      <button onClick={() => setActiveTab('SETTINGS')} className={`p-4 rounded-xl border flex flex-col items-center justify-center transition-all ${activeTab === 'SETTINGS' ? 'bg-white border-slate-800 shadow-md ring-1 ring-slate-800' : 'bg-white border-slate-200 hover:bg-slate-50'}`}>
                         <Settings size={24} className={`mb-2 ${activeTab === 'SETTINGS' ? 'text-slate-800' : 'text-slate-400'}`} />
                         <span className="font-semibold text-slate-700">Configuración</span>
                      </button>
                  ) : (
-                     <div className="p-4 rounded-xl border border-slate-100 flex flex-col items-center justify-center bg-slate-50 opacity-60 cursor-not-allowed" title="Requiere acceso Administrador">
+                     <div className="p-4 rounded-xl border border-slate-100 flex flex-col items-center justify-center bg-slate-50 opacity-60 cursor-not-allowed grayscale" title="Requiere permisos de Configuración Comercial">
                         <Lock size={24} className="mb-2 text-slate-300" />
                         <span className="font-semibold text-slate-400">Configuración</span>
                      </div>

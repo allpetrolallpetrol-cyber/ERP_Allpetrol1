@@ -81,7 +81,7 @@ export const useMasterData = () => {
   return context;
 };
 
-export const MasterDataProvider = ({ children }: { children: ReactNode }) => {
+export const MasterDataProvider = ({ children }: { children?: React.ReactNode }) => {
   // --- REAL TIME FIRESTORE STATE ---
   const [regions, setRegions] = useState<string[]>([]);
   const [uoms, setUoms] = useState<string[]>([]);

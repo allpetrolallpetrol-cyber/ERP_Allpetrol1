@@ -26,6 +26,7 @@ import UserManagement from './components/Users';
 import { Login } from './components/Login';
 import { MasterDataProvider } from './contexts/MasterDataContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { UIProvider, useUI } from './contexts/UIContext';
 import { User, AccessLevel } from './types';
 
 // --- Splash Screen Component ---
@@ -107,20 +108,39 @@ const SidebarItem = ({ to, icon: Icon, label, active, collapsed }: { to: string,
   </Link>
 );
 
-const Layout = ({ children }: { children: React.ReactNode }) => {
+const Layout = ({ children }: { children?: React.ReactNode }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const location = useLocation();
-  const { userProfile, logout } = useAuth(); // Use Auth Context
+  const { userProfile, logout } = useAuth(); 
+  const { showConfirm, showToast } = useUI(); // Use UI Context
 
   const currentUser = userProfile;
 
-  const hasAccess = (moduleId: string): boolean => {
+  const handleLogout = async () => {
+      const confirmed = await showConfirm(
+          'Cerrar Sesión', 
+          '¿Está seguro que desea salir del sistema?', 
+          'info', 
+          'Salir'
+      );
+      
+      if (confirmed) {
+          await logout();
+          showToast('Sesión cerrada correctamente', 'info');
+      }
+  };
+
+  // Helper to check ANY permission within a category
+  const hasModuleAccess = (categoryPrefix: string): boolean => {
       if (!currentUser) return false;
-      if (currentUser.role === 'ADMIN') return true; // Global Admin Override
+      if (currentUser.role === 'ADMIN') return true; 
       
       const perms = currentUser.permissions || {};
-      const level = perms[moduleId];
-      return level !== undefined && level !== 'NONE';
+      
+      // Check if any key starting with prefix exists and is not NONE
+      return Object.entries(perms).some(([key, level]) => 
+          key.startsWith(categoryPrefix) && level !== 'NONE'
+      );
   };
 
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
@@ -148,42 +168,51 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
         <nav className="flex-1 py-6 px-3 space-y-1.5 overflow-y-auto custom-scrollbar">
           <SidebarItem to="/" icon={HomeIcon} label="Home" active={location.pathname === "/"} collapsed={!isSidebarOpen} />
           
-          {hasAccess('COMMERCIAL') && (
+          {hasModuleAccess('COMMERCIAL') && (
             <SidebarItem to="/commercial" icon={ShoppingCart} label="Comercial" active={location.pathname === "/commercial"} collapsed={!isSidebarOpen} />
           )}
           
-          {hasAccess('MASTER_DATA') && (
+          {hasModuleAccess('MASTER_DATA') && (
             <SidebarItem to="/master-data" icon={Database} label="Datos Maestros" active={location.pathname === "/master-data"} collapsed={!isSidebarOpen} />
           )}
           
-          {hasAccess('MAINTENANCE') && (
+          {hasModuleAccess('MAINTENANCE') && (
             <SidebarItem to="/maintenance" icon={Wrench} label="Mantenimiento" active={location.pathname === "/maintenance"} collapsed={!isSidebarOpen} />
           )}
           
-          {hasAccess('WAREHOUSE') && (
+          {hasModuleAccess('WAREHOUSE') && (
             <SidebarItem to="/warehouse" icon={Package} label="Almacenes" active={location.pathname === "/warehouse"} collapsed={!isSidebarOpen} />
           )}
           
-          {hasAccess('USERS') && (
+          {hasModuleAccess('USERS') && (
             <SidebarItem to="/users" icon={Users} label="Usuarios" active={location.pathname === "/users"} collapsed={!isSidebarOpen} />
           )}
         </nav>
 
         <div className="p-4 border-t border-zinc-800/50 bg-zinc-900/30">
           <div className={`flex items-center ${!isSidebarOpen ? 'justify-center' : 'space-x-3'}`}>
-            <div className="w-9 h-9 rounded-lg bg-zinc-800 border border-zinc-700 flex items-center justify-center font-bold shadow-md text-white text-xs overflow-hidden shrink-0">
+            <div className="w-9 h-9 rounded-lg bg-zinc-800 border border-zinc-700 flex items-center justify-center font-bold shadow-md text-white text-xs overflow-hidden shrink-0 relative">
                 {currentUser?.avatarUrl ? (
-                    <img src={currentUser.avatarUrl} alt="" className="w-full h-full object-cover"/>
-                ) : (
-                    <>{currentUser?.firstName?.substring(0,1)}{currentUser?.lastName?.substring(0,1)}</>
-                )}
+                    <img 
+                        src={currentUser.avatarUrl} 
+                        alt="" 
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                            (e.target as HTMLImageElement).style.display = 'none';
+                            (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
+                        }}
+                    />
+                ) : null}
+                <span className={`absolute inset-0 flex items-center justify-center ${currentUser?.avatarUrl ? 'hidden' : ''}`}>
+                    {currentUser?.firstName?.substring(0,1)}{currentUser?.lastName?.substring(0,1)}
+                </span>
             </div>
             {isSidebarOpen && (
               <div className="overflow-hidden animate-in fade-in slide-in-from-left-2 w-full">
                 <p className="text-sm font-medium truncate text-zinc-200">{currentUser?.firstName} {currentUser?.lastName}</p>
                 <div className="flex items-center justify-between">
                     <p className="text-[10px] text-zinc-500 truncate uppercase tracking-wider">{currentUser?.role}</p>
-                    <button onClick={logout} className="text-zinc-500 hover:text-red-400 transition-colors" title="Cerrar Sesión">
+                    <button onClick={handleLogout} className="text-zinc-500 hover:text-red-400 transition-colors" title="Cerrar Sesión">
                         <LogOut size={14}/>
                     </button>
                 </div>
@@ -260,19 +289,14 @@ const Home = () => (
 );
 
 // MAIN APP COMPONENT
-// Manages the global state flow: Loading -> Splash -> Login -> App
 function AppContent() {
     const { currentUser, loading } = useAuth();
     const [showSplash, setShowSplash] = useState(true);
 
-    // If Auth is still loading from Firebase, show nothing or simple spinner
-    // But we use the Splash Screen to mask this loading time visually
-    
     if (showSplash) {
         return <SplashScreen onFinish={() => setShowSplash(false)} />;
     }
 
-    // Only after Splash finishes, we check Auth state
     if (!currentUser) {
         return <Login />;
     }
@@ -297,8 +321,10 @@ function AppContent() {
 
 export default function App() {
     return (
-        <AuthProvider>
-            <AppContent />
-        </AuthProvider>
+        <UIProvider>
+            <AuthProvider>
+                <AppContent />
+            </AuthProvider>
+        </UIProvider>
     );
 }
