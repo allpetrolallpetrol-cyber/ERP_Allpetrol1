@@ -1,13 +1,22 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { ShoppingBag, TrendingUp, ArrowRight, Lock } from 'lucide-react';
 import { ProcurementModule } from './ProcurementModule';
 import { SalesModule } from './SalesModule';
 import { useAuth } from '../../contexts/AuthContext';
+import { useLocation } from 'react-router-dom';
 
 export default function Commercial() {
     const { userProfile } = useAuth();
     const [subModule, setSubModule] = useState<'LANDING' | 'PROCUREMENT' | 'SALES'>('LANDING');
+    const location = useLocation();
+
+    // Auto-navigate from Notification Click
+    useEffect(() => {
+        if (location.state && (location.state as any).view) {
+            setSubModule((location.state as any).view);
+        }
+    }, [location.state]);
 
     const permissions = useMemo(() => {
         if (!userProfile) return { procurement: 'NONE', sales: 'NONE' };
@@ -88,7 +97,13 @@ export default function Commercial() {
             >
                 <ArrowRight className="rotate-180 mr-2" size={18} /> Volver al menú principal
             </button>
-            {subModule === 'PROCUREMENT' && hasAccessProcurement && <ProcurementModule />}
+            
+            {subModule === 'PROCUREMENT' && hasAccessProcurement && (
+                <ProcurementModule 
+                    initialTab={(location.state as any)?.tab} // Pass initial tab if from notification
+                />
+            )}
+            
             {subModule === 'SALES' && hasAccessSales && <SalesModule />}
         </div>
     );

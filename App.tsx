@@ -10,7 +10,6 @@ import {
   Users, 
   Menu, 
   X, 
-  Bell,
   Clock,
   Layers,
   Activity,
@@ -23,6 +22,7 @@ import MasterData from './components/MasterData';
 import Maintenance from './components/maintenance/index'; 
 import Warehouse from './components/Warehouse';
 import UserManagement from './components/Users';
+import { NotificationsBtn } from './components/NotificationsBtn'; // NEW
 import { Login } from './components/Login';
 import { MasterDataProvider } from './contexts/MasterDataContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -238,10 +238,8 @@ const Layout = ({ children }: { children?: React.ReactNode }) => {
           <div className="flex items-center">
             <LiveClock />
             <div className="h-8 w-px bg-zinc-200 mx-2 hidden md:block"></div>
-            <button className="p-2 relative text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 rounded-full transition-colors">
-              <Bell size={20} />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full ring-2 ring-white"></span>
-            </button>
+            {/* NEW NOTIFICATION BUTTON */}
+            <NotificationsBtn />
           </div>
         </header>
 

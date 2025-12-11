@@ -381,9 +381,66 @@ const AreasMasterView = ({ readOnly }: { readOnly?: boolean }) => {
 
 // --- Asset Master View ---
 
+const RoutineInlineForm = ({ assetId, initialData, onSave, onCancel }: { assetId: string, initialData?: MaintenanceRoutine, onSave: (r: MaintenanceRoutine) => void, onCancel: () => void }) => {
+    const [name, setName] = useState(initialData?.name || '');
+    const [discipline, setDiscipline] = useState<any>(initialData?.discipline || 'Mecánica');
+    const [freq, setFreq] = useState(initialData?.frequencyDays || 30);
+    const [hours, setHours] = useState(initialData?.estimatedHours || 1);
+    
+    const handleSubmit = () => {
+        if(!name) return;
+        onSave({
+            id: initialData?.id || `RT-${Date.now()}`,
+            assetId,
+            name,
+            discipline,
+            frequencyDays: freq,
+            estimatedHours: hours,
+            lastExecutionDate: initialData?.lastExecutionDate || new Date().toISOString().split('T')[0],
+            description: initialData?.description || ''
+        });
+    };
+
+    return (
+        <div className="bg-slate-100 p-4 rounded-lg border border-slate-200 mt-2 mb-4 animate-in fade-in">
+            <h5 className="font-bold text-slate-700 text-sm mb-3">{initialData ? 'Editar Rutina' : 'Nueva Rutina Preventiva'}</h5>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+                <div>
+                    <label className="block text-xs font-semibold text-slate-500 mb-1">Nombre Tarea</label>
+                    <input className="w-full px-2 py-1 border rounded text-sm" value={name} onChange={e => setName(e.target.value)} placeholder="Ej. Cambio de Aceite" />
+                </div>
+                <div>
+                    <label className="block text-xs font-semibold text-slate-500 mb-1">Disciplina</label>
+                    <select className="w-full px-2 py-1 border rounded text-sm" value={discipline} onChange={e => setDiscipline(e.target.value)}>
+                        <option value="Mecánica">Mecánica</option>
+                        <option value="Eléctrica">Eléctrica</option>
+                        <option value="Hidráulica">Hidráulica</option>
+                        <option value="Neumática">Neumática</option>
+                        <option value="General">General</option>
+                    </select>
+                </div>
+                <div>
+                    <label className="block text-xs font-semibold text-slate-500 mb-1">Frecuencia (Días)</label>
+                    <input type="number" className="w-full px-2 py-1 border rounded text-sm" value={freq} onChange={e => setFreq(Number(e.target.value))} />
+                </div>
+                <div>
+                    <label className="block text-xs font-semibold text-slate-500 mb-1">Horas Est.</label>
+                    <input type="number" className="w-full px-2 py-1 border rounded text-sm" value={hours} onChange={e => setHours(Number(e.target.value))} />
+                </div>
+            </div>
+            <div className="flex justify-end gap-2">
+                <button onClick={onCancel} className="text-slate-500 text-sm px-3 py-1 hover:bg-slate-200 rounded">Cancelar</button>
+                <button onClick={handleSubmit} className="bg-blue-600 text-white text-sm px-3 py-1 rounded font-medium hover:bg-blue-700">Guardar Rutina</button>
+            </div>
+        </div>
+    );
+};
+
 const AssetForm = ({ initialData, onSave, onCancel, readOnly }: { initialData?: Asset, onSave: (data: Asset) => void, onCancel: () => void, readOnly?: boolean }) => {
-    const { machineTypes, vehicleTypes } = useMasterData();
-    const { showToast } = useUI();
+    const { machineTypes, vehicleTypes, routines, addRoutine, updateRoutine, deleteRoutine } = useMasterData();
+    const { showToast, showConfirm } = useUI();
+    
+    // Asset State
     const [formData, setFormData] = useState<Partial<Asset>>(initialData || {
         code: '',
         name: '',
@@ -397,6 +454,15 @@ const AssetForm = ({ initialData, onSave, onCancel, readOnly }: { initialData?: 
         mileage: 0
     });
 
+    // Routine State
+    const [isAddingRoutine, setIsAddingRoutine] = useState(false);
+    const [editingRoutine, setEditingRoutine] = useState<MaintenanceRoutine | null>(null);
+
+    // Get routines for THIS asset
+    const assetRoutines = useMemo(() => {
+        return initialData ? routines.filter(r => r.assetId === initialData.id) : [];
+    }, [routines, initialData]);
+
     const handleChange = (e: any) => setFormData({...formData, [e.target.name]: e.target.value});
 
     const handleSubmit = () => {
@@ -407,6 +473,29 @@ const AssetForm = ({ initialData, onSave, onCancel, readOnly }: { initialData?: 
         onSave(formData as Asset);
     };
 
+    // Routine Handlers
+    const handleSaveRoutine = async (r: MaintenanceRoutine) => {
+        if (!initialData) return;
+        try {
+            if (editingRoutine) await updateRoutine(r);
+            else await addRoutine(r);
+            showToast('Rutina guardada', 'success');
+            setIsAddingRoutine(false);
+            setEditingRoutine(null);
+        } catch (e) {
+            console.error(e);
+            showToast('Error al guardar rutina', 'error');
+        }
+    };
+
+    const handleDeleteRoutine = async (id: string) => {
+        const confirm = await showConfirm("Eliminar Rutina", "¿Confirma eliminar este plan preventivo?", "danger");
+        if(confirm) {
+            await deleteRoutine(id);
+            showToast('Rutina eliminada', 'info');
+        }
+    };
+
     return (
         <div>
             <div className="flex justify-between items-center mb-6">
@@ -415,41 +504,115 @@ const AssetForm = ({ initialData, onSave, onCancel, readOnly }: { initialData?: 
                     {readOnly ? 'Ver Activo' : (initialData ? 'Editar Activo' : 'Nuevo Activo')}
                 </h3>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Input label="Código Interno" name="code" value={formData.code} onChange={handleChange} readOnly={readOnly} />
-                <Input label="Nombre / Descripción" name="name" value={formData.name} onChange={handleChange} readOnly={readOnly} />
-                <Select label="Tipo de Activo" name="type" value={formData.type} onChange={handleChange} options={[{label: 'Máquina / Equipo', value: AssetType.MACHINE}, {label: 'Vehículo / Flota', value: AssetType.VEHICLE}]} readOnly={readOnly} />
-                
-                <Select 
-                    label="Subtipo / Categoría" 
-                    name="subtype" 
-                    value={formData.subtype} 
-                    onChange={handleChange} 
-                    options={formData.type === AssetType.MACHINE ? machineTypes : vehicleTypes} 
-                    readOnly={readOnly}
-                />
+            
+            {/* General Data Section */}
+            <div className="bg-white p-6 rounded-xl border border-slate-200 mb-6 shadow-sm">
+                <h4 className="font-bold text-slate-700 mb-4 flex items-center"><Cog className="mr-2" size={20}/> Datos Generales</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Input label="Código Interno" name="code" value={formData.code} onChange={handleChange} readOnly={readOnly} />
+                    <Input label="Nombre / Descripción" name="name" value={formData.name} onChange={handleChange} readOnly={readOnly} />
+                    <Select label="Tipo de Activo" name="type" value={formData.type} onChange={handleChange} options={[{label: 'Máquina / Equipo', value: AssetType.MACHINE}, {label: 'Vehículo / Flota', value: AssetType.VEHICLE}]} readOnly={readOnly} />
+                    
+                    <Select 
+                        label="Subtipo / Categoría" 
+                        name="subtype" 
+                        value={formData.subtype} 
+                        onChange={handleChange} 
+                        options={formData.type === AssetType.MACHINE ? machineTypes : vehicleTypes} 
+                        readOnly={readOnly}
+                    />
 
-                <Input label="Marca" name="brand" value={formData.brand} onChange={handleChange} readOnly={readOnly} />
-                <Input label="Modelo" name="model" value={formData.model} onChange={handleChange} readOnly={readOnly} />
-                <Input label="Nro. Serie / Chasis" name="serialNumber" value={formData.serialNumber} onChange={handleChange} readOnly={readOnly} />
-                
-                {formData.type === AssetType.MACHINE ? (
-                    <Input label="Ubicación en Planta" name="location" value={formData.location} onChange={handleChange} readOnly={readOnly} />
-                ) : (
-                    <>
-                        <Input label="Patente / Dominio" name="plate" value={formData.plate} onChange={handleChange} readOnly={readOnly} />
-                        <Input label="Kilometraje Actual" name="mileage" type="number" value={formData.mileage} onChange={handleChange} readOnly={readOnly} />
-                    </>
-                )}
+                    <Input label="Marca" name="brand" value={formData.brand} onChange={handleChange} readOnly={readOnly} />
+                    <Input label="Modelo" name="model" value={formData.model} onChange={handleChange} readOnly={readOnly} />
+                    <Input label="Nro. Serie / Chasis" name="serialNumber" value={formData.serialNumber} onChange={handleChange} readOnly={readOnly} />
+                    
+                    {formData.type === AssetType.MACHINE ? (
+                        <Input label="Ubicación en Planta" name="location" value={formData.location} onChange={handleChange} readOnly={readOnly} />
+                    ) : (
+                        <>
+                            <Input label="Patente / Dominio" name="plate" value={formData.plate} onChange={handleChange} readOnly={readOnly} />
+                            <Input label="Kilometraje Actual" name="mileage" type="number" value={formData.mileage} onChange={handleChange} readOnly={readOnly} />
+                        </>
+                    )}
+                </div>
 
                 {!readOnly && (
-                    <div className="col-span-1 md:col-span-2 flex justify-end mt-4">
+                    <div className="flex justify-end mt-4">
                         <button onClick={handleSubmit} className="flex items-center px-6 py-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 shadow-md">
                             <Save size={18} className="mr-2"/> Guardar Activo
                         </button>
                     </div>
                 )}
             </div>
+
+            {/* Maintenance Plan Section - ONLY VISIBLE IF EDITING EXISTING ASSET */}
+            {initialData && (
+                <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm animate-in fade-in slide-in-from-bottom-4">
+                    <div className="flex justify-between items-center mb-4">
+                        <h4 className="font-bold text-slate-700 flex items-center"><CalendarClock className="mr-2" size={20}/> Plan de Mantenimiento Preventivo</h4>
+                        {!readOnly && !isAddingRoutine && !editingRoutine && (
+                            <button onClick={() => setIsAddingRoutine(true)} className="text-sm bg-blue-50 text-blue-700 px-3 py-1 rounded-lg border border-blue-200 hover:bg-blue-100 font-medium flex items-center">
+                                <Plus size={14} className="mr-1"/> Agregar Plan
+                            </button>
+                        )}
+                    </div>
+
+                    {(isAddingRoutine || editingRoutine) && (
+                        <RoutineInlineForm 
+                            assetId={initialData.id} 
+                            initialData={editingRoutine || undefined} 
+                            onSave={handleSaveRoutine}
+                            onCancel={() => { setIsAddingRoutine(false); setEditingRoutine(null); }}
+                        />
+                    )}
+
+                    <div className="overflow-hidden border border-slate-200 rounded-lg">
+                        <table className="w-full text-left text-sm">
+                            <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
+                                <tr>
+                                    <th className="px-4 py-3">Tarea / Rutina</th>
+                                    <th className="px-4 py-3">Frecuencia</th>
+                                    <th className="px-4 py-3">Disciplina</th>
+                                    <th className="px-4 py-3">Última Ejec.</th>
+                                    {!readOnly && <th className="px-4 py-3 text-right">Acciones</th>}
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                                {assetRoutines.map(r => (
+                                    <tr key={r.id} className="hover:bg-slate-50">
+                                        <td className="px-4 py-3 font-medium text-slate-800">{r.name}</td>
+                                        <td className="px-4 py-3 text-slate-600">{r.frequencyDays} días</td>
+                                        <td className="px-4 py-3 text-slate-600">
+                                            <span className={`px-2 py-0.5 rounded text-xs border ${r.discipline === 'Mecánica' ? 'bg-orange-50 border-orange-200 text-orange-700' : 'bg-slate-100 border-slate-200 text-slate-600'}`}>
+                                                {r.discipline}
+                                            </span>
+                                        </td>
+                                        <td className="px-4 py-3 text-slate-500">{r.lastExecutionDate}</td>
+                                        {!readOnly && (
+                                            <td className="px-4 py-3 text-right">
+                                                <div className="flex justify-end gap-2">
+                                                    <button onClick={() => setEditingRoutine(r)} className="text-blue-600 hover:bg-blue-50 p-1 rounded"><Edit2 size={16}/></button>
+                                                    <button onClick={() => handleDeleteRoutine(r.id)} className="text-red-500 hover:bg-red-50 p-1 rounded"><Trash2 size={16}/></button>
+                                                </div>
+                                            </td>
+                                        )}
+                                    </tr>
+                                ))}
+                                {assetRoutines.length === 0 && (
+                                    <tr><td colSpan={5} className="p-6 text-center text-slate-400 italic">Este activo no tiene planes preventivos asignados.</td></tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            )}
+            
+            {!initialData && (
+                <div className="bg-blue-50 border border-blue-100 p-4 rounded-xl text-blue-700 text-sm flex items-center">
+                    <AlertTriangle size={18} className="mr-2"/>
+                    Guarde el activo primero para poder asignarle planes de mantenimiento preventivo.
+                </div>
+            )}
         </div>
     );
 };
@@ -465,6 +628,10 @@ const AssetMasterView = ({ readOnly }: { readOnly?: boolean }) => {
         const id = selectedAsset?.id || `ASSET-${Date.now()}`;
         await addAsset({ ...data, id });
         showToast('Activo guardado correctamente', 'success');
+        // If it was a new asset, switch to edit mode to allow adding routines immediately? 
+        // Or just go back to list. Let's go back to list for simplicity, user can click edit.
+        // Actually, better UX: if new, set selectedAsset to the new one and keep form open?
+        // For now, consistent behavior: go to list.
         setViewMode('LIST');
     };
 

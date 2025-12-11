@@ -21,10 +21,17 @@ import { ApprovalTray } from './ApprovalTray';
 import { PurchaseOrdersList } from './PurchaseOrdersList';
 import { ApprovalSettings } from './ApprovalSettings';
 
-export const ProcurementModule = () => {
+export const ProcurementModule = ({ initialTab }: { initialTab?: string }) => {
     const { getNextId } = useMasterData();
     const { userProfile } = useAuth();
+    
+    // Set active tab based on prop or default
     const [activeTab, setActiveTab] = useState<'MANAGE_RFQ' | 'APPROVAL' | 'PO_LIST' | 'SETTINGS'>('MANAGE_RFQ');
+    
+    useEffect(() => {
+        if (initialTab === 'APPROVAL') setActiveTab('APPROVAL');
+    }, [initialTab]);
+
     const [rfqs, setRfqs] = useState<RFQ[]>([]); 
     const [showNewForm, setShowNewForm] = useState(false);
     const [draftToEdit, setDraftToEdit] = useState<RFQ | undefined>(undefined);

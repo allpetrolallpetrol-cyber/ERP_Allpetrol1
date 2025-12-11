@@ -74,12 +74,30 @@ export default function Maintenance() {
         return () => unsub();
     }, [hasAnyAccess]);
 
-    // Reset view when clicking the sidebar link
+    // Handle Auto-Navigation from Notifications
     useEffect(() => {
-        if (location.pathname === '/maintenance') {
-            setActiveModule('MENU');
+        const state = location.state as any;
+        if (state && state.view === 'ORDERS') {
+            setActiveModule('ORDERS');
+            if (state.orderId) {
+                // Try to find order in already loaded list (might race with fetch)
+                // We'll rely on the user clicking "Ver detalle" if it's not immediately open, 
+                // OR we can add a logic to open modal once `orders` is populated.
+            }
+        } else if (location.pathname === '/maintenance') {
+            // Default only if NO state passed (normal click)
+            if(!state) setActiveModule('MENU');
         }
-    }, [location.key, location.pathname]);
+    }, [location.key, location.pathname, location.state]);
+
+    // Effect to open specific order if requested via notification
+    useEffect(() => {
+        const state = location.state as any;
+        if(state && state.orderId && orders.length > 0 && !selectedOrder) {
+            const target = orders.find(o => o.id === state.orderId);
+            if(target) setSelectedOrder(target);
+        }
+    }, [orders, location.state, selectedOrder]);
 
     // --- BLOCK IF NO ACCESS ---
     if (!hasAnyAccess) {

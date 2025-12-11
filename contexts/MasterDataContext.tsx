@@ -55,6 +55,7 @@ interface MasterDataContextType {
   addAsset: (val: Asset) => void; 
   addRoutine: (val: MaintenanceRoutine) => void; 
   updateRoutine: (val: MaintenanceRoutine) => void; 
+  deleteRoutine: (id: string) => Promise<void>;
   addChecklistModel: (val: ChecklistModel) => void; 
   updateChecklistModel: (val: ChecklistModel) => void; 
   addChecklistExecution: (val: ChecklistExecution) => void; 
@@ -327,6 +328,10 @@ export const MasterDataProvider = ({ children }: { children?: React.ReactNode })
   const updateRoutine = async (val: MaintenanceRoutine) => {
       await updateDoc(doc(db, 'routines', val.id), { ...val });
   };
+  
+  const deleteRoutine = async (id: string) => {
+      await deleteDoc(doc(db, 'routines', id));
+  };
 
   const addChecklistModel = async (val: ChecklistModel) => {
       await setDoc(doc(db, 'checklist_models', val.id), val);
@@ -408,6 +413,7 @@ export const MasterDataProvider = ({ children }: { children?: React.ReactNode })
       addAsset,
       addRoutine,
       updateRoutine,
+      deleteRoutine,
       addChecklistModel,
       updateChecklistModel,
       addChecklistExecution,
