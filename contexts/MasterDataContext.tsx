@@ -12,7 +12,7 @@ import {
   orderBy
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { ApprovalRule, Material, Asset, MaintenanceRoutine, ChecklistModel, ChecklistExecution, Numerator, DocumentType, Warehouse, WarehouseLocation, Client, Supplier, User, Area, SYSTEM_MODULES, AccessLevel } from '../types';
+import { ApprovalRule, Material, Asset, MaintenanceRoutine, ChecklistModel, ChecklistExecution, Numerator, DocumentType, Warehouse, WarehouseLocation, Client, Supplier, User, Area, SYSTEM_MODULES, AccessLevel, RFQ } from '../types';
 
 interface MasterDataContextType {
   regions: string[];
@@ -28,6 +28,7 @@ interface MasterDataContextType {
   routines: MaintenanceRoutine[]; 
   checklistModels: ChecklistModel[]; 
   checklistExecutions: ChecklistExecution[]; 
+  rfqs: RFQ[]; // Restored RFQs
   
   // Updated User Management
   users: User[]; 
@@ -100,6 +101,7 @@ export const MasterDataProvider = ({ children }: { children?: React.ReactNode })
   const [routines, setRoutines] = useState<MaintenanceRoutine[]>([]);
   const [checklistModels, setChecklistModels] = useState<ChecklistModel[]>([]);
   const [checklistExecutions, setChecklistExecutions] = useState<ChecklistExecution[]>([]);
+  const [rfqs, setRfqs] = useState<RFQ[]>([]);
   
   // Users & Areas
   const [users, setUsers] = useState<User[]>([]);
@@ -233,6 +235,14 @@ export const MasterDataProvider = ({ children }: { children?: React.ReactNode })
     const q = query(collection(db, 'checklist_executions'), orderBy('timestamp', 'desc'));
     const unsub = onSnapshot(q, (snap) => {
         setChecklistExecutions(snap.docs.map(d => ({ id: d.id, ...d.data() } as ChecklistExecution)));
+    });
+    return () => unsub();
+  }, []);
+
+  // RFQs Subscription (Restored)
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, 'rfqs'), (snap) => {
+        setRfqs(snap.docs.map(d => ({ id: d.id, ...d.data() } as RFQ)));
     });
     return () => unsub();
   }, []);
@@ -395,6 +405,7 @@ export const MasterDataProvider = ({ children }: { children?: React.ReactNode })
       routines,
       checklistModels,
       checklistExecutions,
+      rfqs,
       users,
       areas,
       approvalRules,
