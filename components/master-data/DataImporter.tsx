@@ -142,22 +142,22 @@ export const DataImporter = () => {
 
     return (
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden animate-in fade-in h-full flex flex-col">
-            <div className="p-6 border-b border-slate-100 bg-slate-50">
+            <div className="p-4 md:p-6 border-b border-slate-100 bg-slate-50">
                 <h3 className="text-lg font-bold text-slate-800 flex items-center">
-                    <FileSpreadsheet className="mr-2 text-green-600"/> Importación Masiva de Datos
+                    <FileSpreadsheet className="mr-2 text-green-600"/> Importación Masiva
                 </h3>
-                <p className="text-slate-500 text-sm mt-1">Carga desde archivos CSV.</p>
+                <p className="text-slate-500 text-sm mt-1">Carga de datos desde Excel/CSV.</p>
             </div>
             
-            <div className="p-6 space-y-8 overflow-y-auto flex-1">
+            <div className="p-4 md:p-6 space-y-6 overflow-y-auto flex-1 custom-scrollbar">
                 <div>
                     <label className="block text-sm font-bold text-slate-700 mb-2">1. Seleccionar Entidad</label>
-                    <div className="flex gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                         {['MATERIAL', 'CLIENT', 'SUPPLIER'].map(t => (
                             <button 
                                 key={t}
                                 onClick={() => { setImportType(t as any); setFileData([]); if(fileInputRef.current) fileInputRef.current.value=''; }}
-                                className={`px-6 py-3 rounded-lg border text-sm font-medium transition-all ${importType === t ? 'bg-green-50 border-green-500 text-green-700' : 'bg-white border-slate-200 text-slate-600'}`}
+                                className={`px-4 py-3 rounded-lg border text-sm font-medium transition-all ${importType === t ? 'bg-green-50 border-green-500 text-green-700 shadow-sm ring-1 ring-green-500' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
                             >
                                 {t === 'MATERIAL' ? 'Materiales' : t === 'CLIENT' ? 'Clientes' : 'Proveedores'}
                             </button>
@@ -165,13 +165,13 @@ export const DataImporter = () => {
                     </div>
                 </div>
 
-                <div className="bg-blue-50 p-5 rounded-xl border border-blue-100 flex justify-between items-center">
+                <div className="bg-blue-50 p-4 md:p-5 rounded-xl border border-blue-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                     <div>
                         <p className="text-sm font-bold text-blue-800 mb-1">2. Descargar Plantilla</p>
-                        <p className="text-xs text-blue-600">Obtenga el formato correcto para {importType === 'MATERIAL' ? 'Materiales' : importType === 'CLIENT' ? 'Clientes' : 'Proveedores'}.</p>
+                        <p className="text-xs text-blue-600">Formato CSV correcto para {importType === 'MATERIAL' ? 'Materiales' : importType === 'CLIENT' ? 'Clientes' : 'Proveedores'}.</p>
                     </div>
-                    <button onClick={handleDownloadTemplate} className="flex items-center px-4 py-2 bg-white border border-blue-200 rounded-lg text-blue-700 text-xs font-bold shadow-sm hover:bg-blue-50">
-                        <Download size={16} className="mr-2"/> Descargar CSV
+                    <button onClick={handleDownloadTemplate} className="w-full md:w-auto flex items-center justify-center px-4 py-2 bg-white border border-blue-200 rounded-lg text-blue-700 text-xs font-bold shadow-sm hover:bg-blue-50 active:scale-95 transition-transform">
+                        <Download size={16} className="mr-2"/> Descargar Plantilla
                     </button>
                 </div>
 
@@ -182,18 +182,18 @@ export const DataImporter = () => {
                         ref={fileInputRef}
                         accept=".csv"
                         onChange={handleFileUpload}
-                        className="block w-full text-sm text-slate-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200 cursor-pointer"
+                        className="block w-full text-sm text-slate-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200 cursor-pointer border border-slate-200 rounded-lg"
                     />
                 </div>
 
                 {fileData.length > 0 && (
                     <div className="border rounded-xl overflow-hidden shadow-sm">
-                        <div className="bg-slate-100 px-4 py-3 text-xs font-bold text-slate-500">Vista Previa ({fileData.length})</div>
-                        <div className="max-h-60 overflow-auto bg-white">
+                        <div className="bg-slate-100 px-4 py-3 text-xs font-bold text-slate-500">Vista Previa ({fileData.length} filas)</div>
+                        <div className="max-h-60 overflow-auto bg-white custom-scrollbar">
                             <table className="w-full text-xs text-left">
                                 <thead className="bg-slate-50 font-bold border-b sticky top-0">
                                     <tr>
-                                        {Object.keys(fileData[0]).map(k => <th key={k} className="p-3 text-slate-700">{k}</th>)}
+                                        {Object.keys(fileData[0]).map(k => <th key={k} className="p-3 text-slate-700 whitespace-nowrap">{k}</th>)}
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100">
@@ -209,11 +209,11 @@ export const DataImporter = () => {
                 )}
             </div>
 
-            <div className="p-6 border-t border-slate-100 bg-slate-50 flex justify-end shrink-0">
+            <div className="p-4 md:p-6 border-t border-slate-100 bg-slate-50 flex justify-end shrink-0">
                 <button 
                     onClick={executeImport} 
                     disabled={fileData.length === 0 || isImporting}
-                    className="px-8 py-3 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 shadow-md disabled:opacity-50 flex items-center"
+                    className="w-full md:w-auto px-8 py-3 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 shadow-md disabled:opacity-50 flex items-center justify-center transition-all active:scale-95"
                 >
                     {isImporting ? 'Procesando...' : <><Upload size={20} className="mr-2"/> Importar {fileData.length} Registros</>}
                 </button>

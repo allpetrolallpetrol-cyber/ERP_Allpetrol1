@@ -225,7 +225,7 @@ const Layout = ({ children }: { children?: React.ReactNode }) => {
         </nav>
 
         <div className="p-4 border-t border-zinc-800/50 bg-zinc-900/30 shrink-0">
-          <div className={`flex items-center ${!isSidebarOpen ? 'justify-center' : 'space-x-3'}`}>
+          <div className={`flex ${!isSidebarOpen ? 'flex-col items-center gap-3' : 'items-center space-x-3'}`}>
             <div className="w-9 h-9 rounded-lg bg-zinc-800 border border-zinc-700 flex items-center justify-center font-bold shadow-md text-white text-xs overflow-hidden shrink-0 relative">
                 {currentUser?.avatarUrl ? (
                     <img 
@@ -242,6 +242,8 @@ const Layout = ({ children }: { children?: React.ReactNode }) => {
                     {currentUser?.firstName?.substring(0,1)}{currentUser?.lastName?.substring(0,1)}
                 </span>
             </div>
+            
+            {/* EXPANDED STATE */}
             {isSidebarOpen && (
               <div className="overflow-hidden animate-in fade-in slide-in-from-left-2 w-full">
                 <p className="text-sm font-medium truncate text-zinc-200">{currentUser?.firstName} {currentUser?.lastName}</p>
@@ -252,6 +254,17 @@ const Layout = ({ children }: { children?: React.ReactNode }) => {
                     </button>
                 </div>
               </div>
+            )}
+
+            {/* COLLAPSED STATE: SHOW LOGOUT BUTTON UNDER AVATAR */}
+            {!isSidebarOpen && (
+                <button 
+                    onClick={handleLogout} 
+                    className="text-zinc-500 hover:text-red-400 hover:bg-zinc-800 p-2 rounded-lg transition-colors" 
+                    title="Cerrar Sesión"
+                >
+                    <LogOut size={18}/>
+                </button>
             )}
           </div>
         </div>
