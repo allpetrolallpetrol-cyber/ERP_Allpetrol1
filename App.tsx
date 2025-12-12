@@ -9,13 +9,13 @@ import {
   Package, 
   Users, 
   Menu, 
-  X, 
   Clock,
   Layers,
   Activity,
   Command,
   Lock,
-  LogOut
+  LogOut,
+  ChevronLeft
 } from 'lucide-react';
 import Commercial from './components/commercial/index'; 
 import { MasterData } from './components/MasterData';
@@ -90,7 +90,7 @@ const SidebarItem = ({ to, icon: Icon, label, active, collapsed }: { to: string,
   <Link 
     to={to} 
     title={collapsed ? label : undefined}
-    className={`flex items-center ${collapsed ? 'justify-center px-2' : 'space-x-3 px-4'} py-3 rounded-lg transition-all duration-300 group ${
+    className={`flex items-center ${collapsed ? 'justify-center px-2' : 'space-x-3 px-4'} py-3 rounded-lg transition-all duration-300 group overflow-hidden whitespace-nowrap ${
       active 
         ? 'bg-accent text-white shadow-lg shadow-accent/25' 
         : 'text-zinc-400 hover:bg-zinc-800 hover:text-white'
@@ -98,7 +98,7 @@ const SidebarItem = ({ to, icon: Icon, label, active, collapsed }: { to: string,
   >
     <Icon 
       size={20} 
-      className={`transition-transform duration-300 ${
+      className={`transition-transform duration-300 flex-shrink-0 ${
         active 
           ? (collapsed ? 'scale-125' : 'scale-110') 
           : 'group-hover:scale-110'
@@ -109,10 +109,18 @@ const SidebarItem = ({ to, icon: Icon, label, active, collapsed }: { to: string,
 );
 
 const Layout = ({ children }: { children?: React.ReactNode }) => {
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  // Mobile: Sidebar is hidden by default. Desktop: Sidebar is open by default.
+  const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= 768);
   const location = useLocation();
   const { userProfile, logout } = useAuth(); 
   const { showConfirm, showToast } = useUI(); // Use UI Context
+
+  // Close sidebar on route change on mobile
+  useEffect(() => {
+      if (window.innerWidth < 768) {
+          setIsSidebarOpen(false);
+      }
+  }, [location]);
 
   const currentUser = userProfile;
 
@@ -146,26 +154,53 @@ const Layout = ({ children }: { children?: React.ReactNode }) => {
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
 
   return (
-    <div className="flex h-screen bg-background overflow-hidden">
+    <div className="flex h-screen bg-background overflow-hidden relative">
+      
+      {/* Mobile Backdrop */}
+      {isSidebarOpen && (
+          <div 
+            className="fixed inset-0 bg-black/50 z-30 md:hidden animate-in fade-in"
+            onClick={() => setIsSidebarOpen(false)}
+          />
+      )}
+
       {/* Sidebar */}
       <aside 
-        className={`${
-          isSidebarOpen ? 'w-64' : 'w-20'
-        } bg-primary text-white transition-all duration-300 flex flex-col shadow-2xl z-20 border-r border-zinc-800`}
+        className={`
+          fixed z-40 h-full bg-primary text-white transition-all duration-300 ease-in-out flex flex-col shadow-2xl border-r border-zinc-800
+          md:relative
+          ${isSidebarOpen 
+            ? 'w-64 translate-x-0'  // Open: Mobile full width, Desktop full width
+            : '-translate-x-full w-64 md:translate-x-0 md:w-20' // Closed: Mobile OFF SCREEN, Desktop MINI
+          }
+        `}
       >
-        <div className="h-16 flex items-center justify-between px-4 border-b border-zinc-800/50 bg-zinc-900/50 backdrop-blur-sm">
+        <div className={`h-16 flex items-center border-b border-zinc-800/50 bg-zinc-900/50 backdrop-blur-sm shrink-0 transition-all duration-300 ${isSidebarOpen ? 'justify-between px-4' : 'justify-center'}`}>
+          
+          {/* Logo Section - Only Visible when Open */}
           {isSidebarOpen && (
-            <div className="flex items-center space-x-2 animate-in fade-in">
-              <Command className="text-accent" size={24} />
-              <h1 className="text-lg font-bold tracking-wider text-white">PyME <span className="text-accent">ERP</span></h1>
+            <div className="flex items-center space-x-2 overflow-hidden whitespace-nowrap animate-in fade-in slide-in-from-left-2">
+                <Command className="text-accent shrink-0" size={24} />
+                <h1 className="text-lg font-bold tracking-wider text-white">PyME <span className="text-accent">ERP</span></h1>
             </div>
           )}
-          <button onClick={toggleSidebar} className="p-1.5 rounded-lg hover:bg-zinc-800 text-zinc-400 transition-colors">
-            {isSidebarOpen ? <X size={18} /> : <Menu size={20} />}
+
+          {/* Toggle Button - DESKTOP ONLY */}
+          {/* On mobile, we use the backdrop or the main header button to close, keeping sidebar clean */}
+          <button 
+            onClick={toggleSidebar} 
+            className="hidden md:flex p-1.5 rounded-lg hover:bg-zinc-800 transition-colors"
+            title={isSidebarOpen ? "Contraer menú" : "Expandir menú"}
+          >
+            {isSidebarOpen ? (
+                <ChevronLeft size={20} className="text-zinc-400 hover:text-white" />
+            ) : (
+                <Menu size={24} className="text-accent animate-pulse" /> 
+            )}
           </button>
         </div>
 
-        <nav className="flex-1 py-6 px-3 space-y-1.5 overflow-y-auto custom-scrollbar">
+        <nav className="flex-1 py-6 px-3 space-y-1.5 overflow-y-auto custom-scrollbar overflow-x-hidden">
           <SidebarItem to="/" icon={HomeIcon} label="Home" active={location.pathname === "/"} collapsed={!isSidebarOpen} />
           
           {hasModuleAccess('COMMERCIAL') && (
@@ -189,7 +224,7 @@ const Layout = ({ children }: { children?: React.ReactNode }) => {
           )}
         </nav>
 
-        <div className="p-4 border-t border-zinc-800/50 bg-zinc-900/30">
+        <div className="p-4 border-t border-zinc-800/50 bg-zinc-900/30 shrink-0">
           <div className={`flex items-center ${!isSidebarOpen ? 'justify-center' : 'space-x-3'}`}>
             <div className="w-9 h-9 rounded-lg bg-zinc-800 border border-zinc-700 flex items-center justify-center font-bold shadow-md text-white text-xs overflow-hidden shrink-0 relative">
                 {currentUser?.avatarUrl ? (
@@ -225,26 +260,36 @@ const Layout = ({ children }: { children?: React.ReactNode }) => {
       {/* Main Content */}
       <main className="flex-1 flex flex-col overflow-hidden relative bg-zinc-50/50">
         {/* Header */}
-        <header className="h-16 bg-white/80 backdrop-blur-md shadow-sm flex items-center justify-between px-6 z-10 border-b border-zinc-200/50">
-          <h2 className="text-lg font-semibold text-zinc-800 flex items-center">
-            {location.pathname === '/' && <><HomeIcon className="mr-2 text-accent" size={20}/> Home</>}
-            {location.pathname === '/commercial' && <><ShoppingCart className="mr-2 text-accent" size={20}/> Gestión Comercial</>}
-            {location.pathname === '/master-data' && <><Database className="mr-2 text-accent" size={20}/> Datos Maestros</>}
-            {location.pathname === '/maintenance' && <><Wrench className="mr-2 text-accent" size={20}/> Gestión de Mantenimiento</>}
-            {location.pathname === '/warehouse' && <><Package className="mr-2 text-accent" size={20}/> Gestión de Almacenes</>}
-            {location.pathname === '/users' && <><Users className="mr-2 text-accent" size={20}/> Administración de Usuarios</>}
-          </h2>
+        <header className="h-16 bg-white/80 backdrop-blur-md shadow-sm flex items-center justify-between px-4 md:px-6 z-10 border-b border-zinc-200/50 shrink-0">
+          <div className="flex items-center gap-3">
+              {/* Mobile Menu Toggle - Only visible on Mobile */}
+              <button 
+                onClick={toggleSidebar} 
+                className="md:hidden text-zinc-500 p-1 hover:text-accent transition-colors"
+                aria-label="Abrir menú"
+              >
+                  <Menu size={24} />
+              </button>
+              
+              <h2 className="text-base md:text-lg font-semibold text-zinc-800 flex items-center truncate">
+                {location.pathname === '/' && <><HomeIcon className="mr-2 text-accent hidden md:block" size={20}/> Home</>}
+                {location.pathname === '/commercial' && <><ShoppingCart className="mr-2 text-accent hidden md:block" size={20}/> Gestión Comercial</>}
+                {location.pathname === '/master-data' && <><Database className="mr-2 text-accent hidden md:block" size={20}/> Datos Maestros</>}
+                {location.pathname === '/maintenance' && <><Wrench className="mr-2 text-accent hidden md:block" size={20}/> Mantenimiento</>}
+                {location.pathname === '/warehouse' && <><Package className="mr-2 text-accent hidden md:block" size={20}/> Almacenes</>}
+                {location.pathname === '/users' && <><Users className="mr-2 text-accent hidden md:block" size={20}/> Usuarios</>}
+              </h2>
+          </div>
           
           <div className="flex items-center">
             <LiveClock />
             <div className="h-8 w-px bg-zinc-200 mx-2 hidden md:block"></div>
-            {/* NEW NOTIFICATION BUTTON */}
             <NotificationsBtn />
           </div>
         </header>
 
         {/* Scrollable Content Area */}
-        <div className="flex-1 overflow-auto p-6 scroll-smooth">
+        <div className="flex-1 overflow-auto p-4 md:p-6 scroll-smooth">
           {children}
         </div>
       </main>
@@ -255,7 +300,7 @@ const Layout = ({ children }: { children?: React.ReactNode }) => {
 // --- Home / Welcome View ---
 const Home = () => (
   <div className="h-full flex flex-col items-center justify-center pb-20 animate-in fade-in duration-700">
-    <div className="relative mb-8">
+    <div className="relative mb-8 scale-75 md:scale-100">
         {/* Floating Animation Container */}
         <div className="relative w-48 h-48 flex items-center justify-center animate-float">
             <div className="absolute inset-0 bg-accent/5 rounded-full blur-3xl"></div>
@@ -271,11 +316,11 @@ const Home = () => (
         </div>
     </div>
     
-    <h2 className="text-3xl font-bold text-zinc-800 mb-4 tracking-tight">Bienvenido a PyME ERP</h2>
-    <p className="text-zinc-500 text-lg max-w-md text-center leading-relaxed">
+    <h2 className="text-2xl md:text-3xl font-bold text-zinc-800 mb-4 tracking-tight text-center px-4">Bienvenido a PyME ERP</h2>
+    <p className="text-zinc-500 text-base md:text-lg max-w-md text-center leading-relaxed px-4">
         Sistema integral de gestión empresarial.
         <br/>
-        <span className="text-sm mt-2 block text-zinc-400">Seleccione una funcionalidad en el menú lateral para comenzar a operar.</span>
+        <span className="text-xs md:text-sm mt-2 block text-zinc-400">Seleccione una funcionalidad en el menú lateral para comenzar a operar.</span>
     </p>
 
     <div className="mt-12 grid grid-cols-3 gap-4 opacity-50">

@@ -218,7 +218,7 @@ export const NewRFQForm = ({ initialData, onSave, onCancel }: { initialData?: RF
         <div className="bg-white p-6 rounded-xl shadow-lg border border-slate-200 animate-in fade-in slide-in-from-bottom-4">
             <div className="flex justify-between items-center mb-6 border-b pb-4">
                 <h3 className="text-xl font-bold text-slate-800 flex items-center">
-                    <FileText className="mr-2 text-slate-600" /> {(initialData as RFQ)?.id ? 'Editar Petición (Borrador)' : 'Nueva Petición de Oferta (RFQ)'}
+                    <FileText className="mr-2 text-slate-600" /> {(initialData as RFQ)?.id ? 'Editar Borrador' : 'Nueva RFQ'}
                 </h3>
                 <button onClick={onCancel} className="text-slate-400 hover:text-slate-600"><X size={24}/></button>
             </div>
@@ -227,11 +227,11 @@ export const NewRFQForm = ({ initialData, onSave, onCancel }: { initialData?: RF
                 {/* Left Column: Add Items */}
                 <div className="lg:col-span-2 space-y-6">
                     <div className="bg-slate-50 p-5 rounded-xl border border-slate-200 shadow-inner">
-                        <div className="flex justify-between items-center mb-4">
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-3">
                             <h4 className="text-sm font-bold text-slate-700 uppercase flex items-center"><Package className="mr-2" size={16}/> 1. Agregar / Editar Ítem</h4>
                             
                             {/* Toggle Mode */}
-                            <div className="flex bg-slate-200 p-1 rounded-lg">
+                            <div className="flex bg-slate-200 p-1 rounded-lg self-start">
                                 <button 
                                     onClick={() => { setItemMode('CODIFIED'); setFreeTextDescription(''); }}
                                     className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${itemMode === 'CODIFIED' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}
@@ -242,7 +242,7 @@ export const NewRFQForm = ({ initialData, onSave, onCancel }: { initialData?: RF
                                     onClick={() => { setItemMode('FREE_TEXT'); setSelectedMaterialId(''); setSearchMaterialTerm(''); }}
                                     className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${itemMode === 'FREE_TEXT' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}
                                 >
-                                    Texto Libre
+                                    Libre
                                 </button>
                             </div>
                         </div>
@@ -310,7 +310,7 @@ export const NewRFQForm = ({ initialData, onSave, onCancel }: { initialData?: RF
                                         <input 
                                             type="text" 
                                             className="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-accent bg-white"
-                                            placeholder="Ej. Servicio de Mantenimiento Aire Acondicionado..."
+                                            placeholder="Ej. Servicio de Mantenimiento..."
                                             value={freeTextDescription}
                                             onChange={(e) => setFreeTextDescription(e.target.value)}
                                         />
@@ -332,10 +332,10 @@ export const NewRFQForm = ({ initialData, onSave, onCancel }: { initialData?: RF
                                     />
                                     <button 
                                         onClick={addItem} 
-                                        className="bg-slate-900 text-white px-4 rounded-lg hover:bg-slate-800 font-medium shadow-sm transition-transform active:scale-95 whitespace-nowrap"
+                                        className="bg-slate-900 text-white px-4 rounded-lg hover:bg-slate-800 font-medium shadow-sm transition-transform active:scale-95 whitespace-nowrap flex items-center justify-center flex-1 md:flex-none"
                                         title={items.find(i => i.materialId === selectedMaterialId && selectedMaterialId) ? 'Actualizar Item' : 'Agregar Item'}
                                     >
-                                        {items.find(i => i.materialId === selectedMaterialId && selectedMaterialId) ? <Edit2 size={18}/> : <Plus size={20}/>}
+                                        {items.find(i => i.materialId === selectedMaterialId && selectedMaterialId) ? <Edit2 size={18}/> : <Plus size={20}/>} <span className="md:hidden ml-2">Agregar</span>
                                     </button>
                                 </div>
                             </div>
@@ -387,13 +387,13 @@ export const NewRFQForm = ({ initialData, onSave, onCancel }: { initialData?: RF
                     <div>
                         <h4 className="text-sm font-bold text-slate-700 uppercase mb-2">Items Agregados ({items.length})</h4>
                         {items.length > 0 ? (
-                            <div className="border border-slate-200 rounded-lg overflow-hidden shadow-sm">
+                            <div className="border border-slate-200 rounded-lg overflow-x-auto shadow-sm">
                                 <table className="w-full text-sm bg-white">
                                     <thead className="bg-slate-100 text-slate-600 font-semibold border-b border-slate-200">
                                         <tr>
-                                            <th className="text-left px-4 py-2">Descripción</th>
+                                            <th className="text-left px-4 py-2 min-w-[200px]">Descripción</th>
                                             <th className="text-center px-4 py-2">Cant.</th>
-                                            <th className="text-left px-4 py-2">Proveedores Asignados</th>
+                                            <th className="text-left px-4 py-2 min-w-[200px]">Proveedores Asignados</th>
                                             <th className="px-4 py-2 w-20 text-right">Acciones</th>
                                         </tr>
                                     </thead>
@@ -493,7 +493,7 @@ export const NewRFQForm = ({ initialData, onSave, onCancel }: { initialData?: RF
                                 <span className="font-bold text-slate-800">{uniqueSuppliers.length}</span>
                             </div>
                             
-                            <div className="flex gap-2">
+                            <div className="flex flex-col md:flex-row gap-2">
                                 <button 
                                     onClick={handleDraft} 
                                     disabled={items.length === 0}

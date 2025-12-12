@@ -1,4 +1,5 @@
 
+
 import React, { useState, useMemo } from 'react';
 import { ArrowDownLeft, ArrowUpRight, Search, RefreshCw, Lock, BarChart3, AlertTriangle, ArrowRight } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
@@ -63,7 +64,8 @@ const StockTable = () => {
 };
 
 const ReplenishmentAnalysis = () => {
-    const { materials, maintenanceOrders, addPurchaseRequest, getNextId, userProfile } = useMasterData();
+    const { userProfile } = useAuth();
+    const { materials, maintenanceOrders, addPurchaseRequest, getNextId } = useMasterData();
     const [selectedMaterialIds, setSelectedMaterialIds] = useState<string[]>([]);
 
     // 1. Calculate Demand from OPEN Maintenance Orders

@@ -1,4 +1,5 @@
 
+
 import React, { useState } from 'react';
 import { jsPDF } from 'jspdf';
 import { MaintenanceOrder, MaintenanceStatus, MaintenanceType } from '../../types';
@@ -100,7 +101,8 @@ export const OrderDetailModal = ({ order, allOrders, onClose, onUpdateOrder, rea
         currentY += 15;
 
         doc.setFont("helvetica", "normal");
-        doc.text(`Técnico Asignado: ${technician?.name || 'Sin asignar'}`, 20, currentY);
+        const techName = technician ? `${technician.lastName}, ${technician.firstName}` : 'Sin asignar';
+        doc.text(`Técnico Asignado: ${techName}`, 20, currentY);
         currentY += 8;
 
         if (order.assignedMaterials && order.assignedMaterials.length > 0) {
@@ -239,11 +241,14 @@ export const OrderDetailModal = ({ order, allOrders, onClose, onUpdateOrder, rea
                                         >
                                             <option value="">Seleccionar...</option>
                                             {users.map(u => (
-                                                <option key={u.id} value={u.id}>{u.name}</option>
+                                                <option key={u.id} value={u.id}>{u.lastName}, {u.firstName}</option>
                                             ))}
                                         </select>
                                     ) : (
-                                        <b>{users.find(u => u.id === order.technician)?.name || 'N/A'}</b>
+                                        <b>{(() => {
+                                            const u = users.find(usr => usr.id === order.technician);
+                                            return u ? `${u.lastName}, ${u.firstName}` : 'N/A';
+                                        })()}</b>
                                     )}
                                 </div>
                             </div>

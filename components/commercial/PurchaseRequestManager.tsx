@@ -145,13 +145,13 @@ export const PurchaseRequestManager = ({ onCreateRFQ }: { onCreateRFQ: (items: R
                     onClick={() => setIsModalOpen(true)}
                     className="bg-white border border-slate-300 text-slate-700 px-4 py-2 rounded-lg font-medium hover:bg-slate-50 shadow-sm flex items-center transition-colors"
                 >
-                    <Plus size={18} className="mr-2"/> Nueva Solicitud Manual
+                    <Plus size={18} className="mr-2"/> <span className="hidden md:inline">Nueva Solicitud Manual</span><span className="md:hidden">Nueva</span>
                 </button>
             </div>
 
             {/* List */}
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-[500px]">
-                <div className="p-4 border-b border-slate-100 flex gap-4 bg-slate-50/50">
+                <div className="p-4 border-b border-slate-100 flex flex-col md:flex-row gap-4 bg-slate-50/50">
                     <div className="relative flex-1">
                         <input 
                             className="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-200 outline-none" 
@@ -164,7 +164,7 @@ export const PurchaseRequestManager = ({ onCreateRFQ }: { onCreateRFQ: (items: R
                     {selectedRequestIds.length > 0 && (
                         <button 
                             onClick={handleProcessToRFQ}
-                            className="bg-orange-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-md hover:bg-orange-700 transition-colors flex items-center animate-in slide-in-from-right-4"
+                            className="bg-orange-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-md hover:bg-orange-700 transition-colors flex items-center justify-center animate-in slide-in-from-right-4"
                         >
                             Generar RFQ ({selectedRequestIds.length}) <ArrowRight size={16} className="ml-2"/>
                         </button>
@@ -177,8 +177,8 @@ export const PurchaseRequestManager = ({ onCreateRFQ }: { onCreateRFQ: (items: R
                             <tr>
                                 <th className="p-4 w-10"></th>
                                 <th className="p-4">Nro Solicitud</th>
-                                <th className="p-4">Fecha</th>
-                                <th className="p-4">Solicitante</th>
+                                <th className="p-4 hidden md:table-cell">Fecha</th>
+                                <th className="p-4 hidden md:table-cell">Solicitante</th>
                                 <th className="p-4">Origen</th>
                                 <th className="p-4">Items</th>
                             </tr>
@@ -192,8 +192,8 @@ export const PurchaseRequestManager = ({ onCreateRFQ }: { onCreateRFQ: (items: R
                                         </button>
                                     </td>
                                     <td className="p-4 font-bold text-slate-800">{pr.number}</td>
-                                    <td className="p-4 text-slate-500 flex items-center"><Calendar size={14} className="mr-1"/> {pr.date}</td>
-                                    <td className="p-4 text-slate-600 flex items-center"><User size={14} className="mr-1"/> {pr.requesterName}</td>
+                                    <td className="p-4 text-slate-500 hidden md:table-cell"><span className="flex items-center"><Calendar size={14} className="mr-1"/> {pr.date}</span></td>
+                                    <td className="p-4 text-slate-600 hidden md:table-cell"><span className="flex items-center"><User size={14} className="mr-1"/> {pr.requesterName}</span></td>
                                     <td className="p-4">
                                         <span className={`text-[10px] font-bold px-2 py-1 rounded border ${
                                             pr.origin === 'MAINTENANCE' ? 'bg-blue-50 text-blue-700 border-blue-100' :

@@ -1,4 +1,5 @@
 
+
 import React, { useState, useMemo } from 'react';
 import { MaintenanceOrder, MaintenanceStatus, MaintenanceType } from '../../types';
 import { useMasterData } from '../../contexts/MasterDataContext';
@@ -47,7 +48,8 @@ export const KanbanBoard = ({ orders, onSelectOrder }: { orders: MaintenanceOrde
                 <div className="p-3 space-y-3 overflow-y-auto flex-1 custom-scrollbar">
                     {visibleOrders.map(order => {
                         const isOverdue = order.plannedDate && order.plannedDate < TODAY && order.status !== MaintenanceStatus.CLOSED;
-                        const techName = users.find(u => u.id === order.technician)?.name;
+                        const techUser = users.find(u => u.id === order.technician);
+                        const techName = techUser ? `${techUser.lastName}, ${techUser.firstName}` : undefined;
                         
                         return (
                             <div 
@@ -88,7 +90,7 @@ export const KanbanBoard = ({ orders, onSelectOrder }: { orders: MaintenanceOrde
                                     
                                     {techName && (
                                         <span className="flex items-center" title={`Técnico: ${techName}`}>
-                                            <User size={12} className="mr-1"/> {techName.split(' ')[0]}
+                                            <User size={12} className="mr-1"/> {techName.split(',')[0]}
                                         </span>
                                     )}
                                 </div>
