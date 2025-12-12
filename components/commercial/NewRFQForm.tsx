@@ -1,24 +1,28 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Package, X, CheckCircle, Edit2, Trash2, Mail, Archive, FileText, Briefcase, Search, Eraser, Plus } from 'lucide-react';
+import { Package, X, CheckCircle, Edit2, Trash2, Mail, Archive, FileText, Briefcase, Search, Eraser, Plus, PenTool } from 'lucide-react';
 import { useMasterData } from '../../contexts/MasterDataContext';
 import { RFQ, OrderStatus, RFQItem, Supplier } from '../../types';
 
-export const NewRFQForm = ({ initialData, onSave, onCancel }: { initialData?: RFQ, onSave: (rfq: any) => void, onCancel: () => void }) => {
+export const NewRFQForm = ({ initialData, onSave, onCancel }: { initialData?: RFQ | { items: RFQItem[] }, onSave: (rfq: any) => void, onCancel: () => void }) => {
     const { suppliers, materials, getNextId } = useMasterData();
-    const [items, setItems] = useState<RFQItem[]>(initialData?.items || []);
+    const [items, setItems] = useState<RFQItem[]>((initialData as any)?.items || []);
     
     // Temp item state
+    const [itemMode, setItemMode] = useState<'CODIFIED' | 'FREE_TEXT'>('CODIFIED');
+    
     const [selectedMaterialId, setSelectedMaterialId] = useState('');
+    const [freeTextDescription, setFreeTextDescription] = useState('');
+    
     const [searchMaterialTerm, setSearchMaterialTerm] = useState('');
     const [showMaterialDropdown, setShowMaterialDropdown] = useState(false);
     
     const [quantity, setQuantity] = useState(1);
     const [selectedItemSuppliers, setSelectedItemSuppliers] = useState<string[]>([]); 
 
-    // Reset item suppliers when material changes
+    // Reset item suppliers when material changes (Only for CODIFIED)
     useEffect(() => {
-        if (selectedMaterialId) {
+        if (itemMode === 'CODIFIED' && selectedMaterialId) {
             const mat = materials.find(m => m.id === selectedMaterialId);
             if (mat) {
                 // Automatically pre-select the assigned suppliers from Master Data
@@ -26,10 +30,10 @@ export const NewRFQForm = ({ initialData, onSave, onCancel }: { initialData?: RF
                 // Also update the search term to match the selected item for visual consistency
                 setSearchMaterialTerm(`${mat.code} - ${mat.description}`);
             }
-        } else {
+        } else if (itemMode === 'CODIFIED' && !selectedMaterialId) {
             setSelectedItemSuppliers([]);
         }
-    }, [selectedMaterialId, materials]);
+    }, [selectedMaterialId, materials, itemMode]);
 
     // Filter materials for the dropdown
     const filteredMaterials = useMemo(() => {
@@ -41,24 +45,28 @@ export const NewRFQForm = ({ initialData, onSave, onCancel }: { initialData?: RF
         ).slice(0, 50); // Limit results for performance
     }, [materials, searchMaterialTerm]);
 
-    // Sorted suppliers for display: Suggested (Linked) first, then Alphabetical
+    // Sorted suppliers for display
     const sortedSuppliersForSelection = useMemo(() => {
-        const mat = materials.find(m => m.id === selectedMaterialId);
-        
+        // If codified, prioritize assigned suppliers
+        if (itemMode === 'CODIFIED' && selectedMaterialId) {
+            const mat = materials.find(m => m.id === selectedMaterialId);
+            return [...suppliers].sort((a, b) => {
+                const isLinkedA = mat?.assignedSupplierIds?.includes(a.id) ? 1 : 0;
+                const isLinkedB = mat?.assignedSupplierIds?.includes(b.id) ? 1 : 0;
+                if (isLinkedA > isLinkedB) return -1;
+                if (isLinkedA < isLinkedB) return 1;
+                const nameA = (a as any).name || a.businessName || '';
+                const nameB = (b as any).name || b.businessName || '';
+                return nameA.localeCompare(nameB);
+            });
+        }
+        // If free text, just alphabetical
         return [...suppliers].sort((a, b) => {
-            const isLinkedA = mat?.assignedSupplierIds?.includes(a.id) ? 1 : 0;
-            const isLinkedB = mat?.assignedSupplierIds?.includes(b.id) ? 1 : 0;
-            
-            // Priority 1: Linked suppliers first
-            if (isLinkedA > isLinkedB) return -1;
-            if (isLinkedA < isLinkedB) return 1;
-            
-            // Priority 2: Alphabetical by name
             const nameA = (a as any).name || a.businessName || '';
             const nameB = (b as any).name || b.businessName || '';
             return nameA.localeCompare(nameB);
         });
-    }, [suppliers, selectedMaterialId, materials]);
+    }, [suppliers, selectedMaterialId, materials, itemMode]);
 
     const handleSelectMaterial = (materialId: string) => {
         setSelectedMaterialId(materialId);
@@ -68,8 +76,10 @@ export const NewRFQForm = ({ initialData, onSave, onCancel }: { initialData?: RF
     const clearMaterialSelection = () => {
         setSelectedMaterialId('');
         setSearchMaterialTerm('');
+        setFreeTextDescription('');
         setSelectedItemSuppliers([]);
         setShowMaterialDropdown(true);
+        setItemMode('CODIFIED'); // Reset to default
     };
 
     const toggleItemSupplier = (supplierId: string) => {
@@ -81,28 +91,44 @@ export const NewRFQForm = ({ initialData, onSave, onCancel }: { initialData?: RF
     };
 
     const addItem = () => {
-        if(!selectedMaterialId) return;
-        const mat = materials.find(m => m.id === selectedMaterialId);
-        if(!mat) return;
+        let description = '';
+        let materialId: string | undefined = undefined;
+
+        if (itemMode === 'CODIFIED') {
+            if(!selectedMaterialId) return;
+            const mat = materials.find(m => m.id === selectedMaterialId);
+            if(!mat) return;
+            materialId = mat.id;
+            description = mat.description;
+        } else {
+            if(!freeTextDescription.trim()) return;
+            description = freeTextDescription;
+        }
 
         if(selectedItemSuppliers.length === 0) {
-            alert("Debe seleccionar al menos un proveedor para este material.");
+            alert("Debe seleccionar al menos un proveedor para este item.");
             return;
         }
 
-        // Check if updating existing item
-        const existingIndex = items.findIndex(i => i.materialId === selectedMaterialId);
-        const newItem = { 
-            materialId: mat.id, 
-            description: mat.description, 
+        // Create Item
+        const newItem: RFQItem = { 
+            materialId, 
+            description, 
             quantity: quantity,
             targetSupplierIds: selectedItemSuppliers 
         };
 
-        if (existingIndex >= 0) {
-            const newItems = [...items];
-            newItems[existingIndex] = newItem;
-            setItems(newItems);
+        // If codified, check if exists to update qty. If free text, always add new.
+        if (materialId) {
+            const existingIndex = items.findIndex(i => i.materialId === materialId);
+            if (existingIndex >= 0) {
+                const newItems = [...items];
+                // Overwrite or sum? Let's overwrite as it might be an edit
+                newItems[existingIndex] = newItem;
+                setItems(newItems);
+            } else {
+                setItems([...items, newItem]);
+            }
         } else {
             setItems([...items, newItem]);
         }
@@ -114,13 +140,18 @@ export const NewRFQForm = ({ initialData, onSave, onCancel }: { initialData?: RF
 
     const editItem = (index: number) => {
         const itemToEdit = items[index];
-        setSelectedMaterialId(itemToEdit.materialId);
         setQuantity(itemToEdit.quantity);
         setSelectedItemSuppliers(itemToEdit.targetSupplierIds || []);
         
-        // Find material to set name in search bar
-        const mat = materials.find(m => m.id === itemToEdit.materialId);
-        if(mat) setSearchMaterialTerm(`${mat.code} - ${mat.description}`);
+        if (itemToEdit.materialId) {
+            setItemMode('CODIFIED');
+            setSelectedMaterialId(itemToEdit.materialId);
+            const mat = materials.find(m => m.id === itemToEdit.materialId);
+            if(mat) setSearchMaterialTerm(`${mat.code} - ${mat.description}`);
+        } else {
+            setItemMode('FREE_TEXT');
+            setFreeTextDescription(itemToEdit.description);
+        }
     };
 
     const removeItem = (index: number) => {
@@ -148,23 +179,24 @@ export const NewRFQForm = ({ initialData, onSave, onCancel }: { initialData?: RF
     const createRFQObject = async (status: OrderStatus) => {
         const selectedSupplierObjs = uniqueSuppliers.map(s => ({
             id: s.id, 
-            // Handle name fallback safely
             name: (s as any).name || s.businessName || 'Proveedor'
         }));
         
-        // Generate ID only if it's a new record
-        let number = initialData?.number;
+        // Generate ID only if it's a new record (and not just an object with items passed from grouping)
+        let number = (initialData as RFQ)?.number;
         if (!number) {
             number = await getNextId('RFQ');
         }
 
+        const rfqId = (initialData as RFQ)?.id || `RFQ-${Date.now()}`;
+
         return {
-            id: initialData?.id || `RFQ-${Date.now()}`,
+            id: rfqId,
             number: number,
-            date: initialData?.date || new Date().toISOString().split('T')[0],
+            date: (initialData as RFQ)?.date || new Date().toISOString().split('T')[0],
             items: items,
             selectedSuppliers: selectedSupplierObjs,
-            quotes: initialData?.quotes || [],
+            quotes: (initialData as RFQ)?.quotes || [],
             status: status
         };
     };
@@ -186,7 +218,7 @@ export const NewRFQForm = ({ initialData, onSave, onCancel }: { initialData?: RF
         <div className="bg-white p-6 rounded-xl shadow-lg border border-slate-200 animate-in fade-in slide-in-from-bottom-4">
             <div className="flex justify-between items-center mb-6 border-b pb-4">
                 <h3 className="text-xl font-bold text-slate-800 flex items-center">
-                    <FileText className="mr-2 text-slate-600" /> {initialData ? 'Editar Petición (Borrador)' : 'Nueva Petición de Oferta (RFQ)'}
+                    <FileText className="mr-2 text-slate-600" /> {(initialData as RFQ)?.id ? 'Editar Petición (Borrador)' : 'Nueva Petición de Oferta (RFQ)'}
                 </h3>
                 <button onClick={onCancel} className="text-slate-400 hover:text-slate-600"><X size={24}/></button>
             </div>
@@ -195,61 +227,94 @@ export const NewRFQForm = ({ initialData, onSave, onCancel }: { initialData?: RF
                 {/* Left Column: Add Items */}
                 <div className="lg:col-span-2 space-y-6">
                     <div className="bg-slate-50 p-5 rounded-xl border border-slate-200 shadow-inner">
-                        <h4 className="text-sm font-bold text-slate-700 uppercase mb-4 flex items-center"><Package className="mr-2" size={16}/> 1. Agregar / Editar Material</h4>
+                        <div className="flex justify-between items-center mb-4">
+                            <h4 className="text-sm font-bold text-slate-700 uppercase flex items-center"><Package className="mr-2" size={16}/> 1. Agregar / Editar Ítem</h4>
+                            
+                            {/* Toggle Mode */}
+                            <div className="flex bg-slate-200 p-1 rounded-lg">
+                                <button 
+                                    onClick={() => { setItemMode('CODIFIED'); setFreeTextDescription(''); }}
+                                    className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${itemMode === 'CODIFIED' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}
+                                >
+                                    Catálogo
+                                </button>
+                                <button 
+                                    onClick={() => { setItemMode('FREE_TEXT'); setSelectedMaterialId(''); setSearchMaterialTerm(''); }}
+                                    className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${itemMode === 'FREE_TEXT' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}
+                                >
+                                    Texto Libre
+                                </button>
+                            </div>
+                        </div>
                         
                         <div className="grid grid-cols-1 md:grid-cols-12 gap-4 mb-4">
                             <div className="md:col-span-8 relative">
-                                <label className="block text-xs font-semibold text-slate-500 mb-1">Buscar Material (Código o Nombre)</label>
-                                <div className="relative">
-                                    <input 
-                                        type="text" 
-                                        className={`w-full pl-9 pr-8 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-accent transition-all ${selectedMaterialId ? 'bg-green-50 border-green-200 text-green-800 font-medium' : 'bg-white border-slate-300'}`}
-                                        placeholder="Escriba para buscar..."
-                                        value={searchMaterialTerm}
-                                        onChange={(e) => {
-                                            setSearchMaterialTerm(e.target.value);
-                                            setShowMaterialDropdown(true);
-                                            if(selectedMaterialId) {
-                                                // If user types while something is selected, clear selection to allow search
-                                                setSelectedMaterialId(''); 
-                                                setSelectedItemSuppliers([]);
-                                            }
-                                        }}
-                                        onFocus={() => setShowMaterialDropdown(true)}
-                                    />
-                                    <Search size={16} className="absolute left-3 top-2.5 text-slate-400" />
-                                    {searchMaterialTerm && (
-                                        <button 
-                                            onClick={clearMaterialSelection} 
-                                            className="absolute right-2 top-2 text-slate-400 hover:text-slate-600"
-                                        >
-                                            <X size={16} />
-                                        </button>
-                                    )}
-                                </div>
-
-                                {/* Dropdown Results */}
-                                {showMaterialDropdown && searchMaterialTerm && !selectedMaterialId && (
-                                    <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl max-h-60 overflow-y-auto">
-                                        {filteredMaterials.length > 0 ? (
-                                            filteredMaterials.map(m => (
-                                                <div 
-                                                    key={m.id} 
-                                                    onClick={() => handleSelectMaterial(m.id)}
-                                                    className="px-4 py-2 hover:bg-slate-50 cursor-pointer border-b border-slate-50 last:border-0"
-                                                >
-                                                    <div className="font-bold text-slate-800 text-sm">{m.description}</div>
-                                                    <div className="text-xs text-slate-500 flex justify-between">
-                                                        <span>Cod: {m.code}</span>
-                                                        <span>Stock: {m.stock} {m.unitOfMeasure}</span>
+                                <label className="block text-xs font-semibold text-slate-500 mb-1">
+                                    {itemMode === 'CODIFIED' ? 'Buscar Material (Código o Nombre)' : 'Descripción del Material / Servicio'}
+                                </label>
+                                
+                                {itemMode === 'CODIFIED' ? (
+                                    <div className="relative">
+                                        <input 
+                                            type="text" 
+                                            className={`w-full pl-9 pr-8 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-accent transition-all ${selectedMaterialId ? 'bg-green-50 border-green-200 text-green-800 font-medium' : 'bg-white border-slate-300'}`}
+                                            placeholder="Escriba para buscar..."
+                                            value={searchMaterialTerm}
+                                            onChange={(e) => {
+                                                setSearchMaterialTerm(e.target.value);
+                                                setShowMaterialDropdown(true);
+                                                if(selectedMaterialId) {
+                                                    setSelectedMaterialId(''); 
+                                                    setSelectedItemSuppliers([]);
+                                                }
+                                            }}
+                                            onFocus={() => setShowMaterialDropdown(true)}
+                                        />
+                                        <Search size={16} className="absolute left-3 top-2.5 text-slate-400" />
+                                        {searchMaterialTerm && (
+                                            <button 
+                                                onClick={clearMaterialSelection} 
+                                                className="absolute right-2 top-2 text-slate-400 hover:text-slate-600"
+                                            >
+                                                <X size={16} />
+                                            </button>
+                                        )}
+                                        
+                                        {/* Dropdown Results */}
+                                        {showMaterialDropdown && searchMaterialTerm && !selectedMaterialId && (
+                                            <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl max-h-60 overflow-y-auto">
+                                                {filteredMaterials.length > 0 ? (
+                                                    filteredMaterials.map(m => (
+                                                        <div 
+                                                            key={m.id} 
+                                                            onClick={() => handleSelectMaterial(m.id)}
+                                                            className="px-4 py-2 hover:bg-slate-50 cursor-pointer border-b border-slate-50 last:border-0"
+                                                        >
+                                                            <div className="font-bold text-slate-800 text-sm">{m.description}</div>
+                                                            <div className="text-xs text-slate-500 flex justify-between">
+                                                                <span>Cod: {m.code}</span>
+                                                                <span>Stock: {m.stock} {m.unitOfMeasure}</span>
+                                                            </div>
+                                                        </div>
+                                                    ))
+                                                ) : (
+                                                    <div className="px-4 py-3 text-sm text-slate-400 italic text-center">
+                                                        No se encontraron materiales.
                                                     </div>
-                                                </div>
-                                            ))
-                                        ) : (
-                                            <div className="px-4 py-3 text-sm text-slate-400 italic text-center">
-                                                No se encontraron materiales.
+                                                )}
                                             </div>
                                         )}
+                                    </div>
+                                ) : (
+                                    <div className="relative">
+                                        <input 
+                                            type="text" 
+                                            className="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-accent bg-white"
+                                            placeholder="Ej. Servicio de Mantenimiento Aire Acondicionado..."
+                                            value={freeTextDescription}
+                                            onChange={(e) => setFreeTextDescription(e.target.value)}
+                                        />
+                                        <PenTool size={16} className="absolute left-3 top-2.5 text-slate-400" />
                                     </div>
                                 )}
                             </div>
@@ -262,22 +327,22 @@ export const NewRFQForm = ({ initialData, onSave, onCancel }: { initialData?: RF
                                         type="number" 
                                         placeholder="Cant." 
                                         value={quantity}
-                                        onChange={e => setQuantity(parseInt(e.target.value))}
-                                        min="1"
+                                        onChange={e => setQuantity(parseFloat(e.target.value))}
+                                        min="0.1"
                                     />
                                     <button 
                                         onClick={addItem} 
                                         className="bg-slate-900 text-white px-4 rounded-lg hover:bg-slate-800 font-medium shadow-sm transition-transform active:scale-95 whitespace-nowrap"
-                                        title={items.find(i => i.materialId === selectedMaterialId) ? 'Actualizar Item' : 'Agregar Item'}
+                                        title={items.find(i => i.materialId === selectedMaterialId && selectedMaterialId) ? 'Actualizar Item' : 'Agregar Item'}
                                     >
-                                        {items.find(i => i.materialId === selectedMaterialId) ? <Edit2 size={18}/> : <Plus size={20}/>}
+                                        {items.find(i => i.materialId === selectedMaterialId && selectedMaterialId) ? <Edit2 size={18}/> : <Plus size={20}/>}
                                     </button>
                                 </div>
                             </div>
                         </div>
 
                         {/* Supplier Selection Area for Current Item */}
-                        {selectedMaterialId && (
+                        {(selectedMaterialId || freeTextDescription) && (
                             <div className="bg-white p-4 rounded-lg border border-slate-200 animate-in fade-in">
                                 <div className="flex justify-between items-center mb-3">
                                     <label className="block text-xs font-bold text-slate-700">Proveedores para este ítem:</label>
@@ -287,7 +352,7 @@ export const NewRFQForm = ({ initialData, onSave, onCancel }: { initialData?: RF
                                 </div>
                                 <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto custom-scrollbar p-1">
                                     {sortedSuppliersForSelection.map(sup => {
-                                        const mat = materials.find(m => m.id === selectedMaterialId);
+                                        const mat = itemMode === 'CODIFIED' ? materials.find(m => m.id === selectedMaterialId) : null;
                                         const isLinked = mat?.assignedSupplierIds?.includes(sup.id);
                                         const isSelected = selectedItemSuppliers.includes(sup.id);
                                         
@@ -335,7 +400,14 @@ export const NewRFQForm = ({ initialData, onSave, onCancel }: { initialData?: RF
                                     <tbody>
                                         {items.map((it, idx) => (
                                             <tr key={idx} className="border-b last:border-0 hover:bg-slate-50 transition-colors">
-                                                <td className="px-4 py-3 font-medium text-slate-700">{it.description}</td>
+                                                <td className="px-4 py-3 font-medium text-slate-700">
+                                                    {it.description}
+                                                    {it.materialId ? 
+                                                        <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-50 text-green-700 border border-green-200">COD</span>
+                                                        : 
+                                                        <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-500 border border-slate-200">LIBRE</span>
+                                                    }
+                                                </td>
                                                 <td className="text-center px-4 py-3 font-mono bg-slate-50">{it.quantity}</td>
                                                 <td className="px-4 py-3">
                                                     <div className="flex flex-wrap gap-1">

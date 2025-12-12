@@ -74,10 +74,10 @@ const LiveClock = () => {
 
   return (
     <div className="flex flex-col items-end mr-4 text-right hidden md:block">
-      <div className="text-sm font-bold text-zinc-700 font-mono">
+      <div className="text-sm font-semibold text-zinc-700 tracking-wide tabular-nums font-sans">
         {date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
       </div>
-      <div className="text-xs text-zinc-400 capitalize">
+      <div className="text-xs text-zinc-400 capitalize tracking-tight font-medium">
         {date.toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' })}
       </div>
     </div>

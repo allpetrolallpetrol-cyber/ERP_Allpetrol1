@@ -12,7 +12,7 @@ import {
   orderBy
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { ApprovalRule, Material, Asset, MaintenanceRoutine, ChecklistModel, ChecklistExecution, Numerator, DocumentType, Warehouse, WarehouseLocation, Client, Supplier, User, Area, SYSTEM_MODULES, AccessLevel, RFQ } from '../types';
+import { ApprovalRule, Material, Asset, MaintenanceRoutine, MaintenanceOrder, MaintenanceStatus, ChecklistModel, ChecklistExecution, Numerator, DocumentType, Warehouse, WarehouseLocation, Client, Supplier, User, Area, SYSTEM_MODULES, AccessLevel, RFQ, PurchaseRequest, RequestStatus } from '../types';
 
 interface MasterDataContextType {
   regions: string[];
@@ -26,11 +26,12 @@ interface MasterDataContextType {
   materials: Material[]; 
   assets: Asset[]; 
   routines: MaintenanceRoutine[]; 
+  maintenanceOrders: MaintenanceOrder[]; 
   checklistModels: ChecklistModel[]; 
   checklistExecutions: ChecklistExecution[]; 
-  rfqs: RFQ[]; // Restored RFQs
+  rfqs: RFQ[]; 
+  purchaseRequests: PurchaseRequest[]; 
   
-  // Updated User Management
   users: User[]; 
   areas: Area[];
   addUser: (u: User) => Promise<void>;
@@ -46,13 +47,13 @@ interface MasterDataContextType {
   addMachineType: (val: string) => void;
   addVehicleType: (val: string) => void;
   
-  // Warehouse CRUD
   addWarehouse: (val: Warehouse) => void;
   updateWarehouse: (val: Warehouse) => void;
   addWarehouseLocation: (val: WarehouseLocation) => void;
   updateWarehouseLocation: (val: WarehouseLocation) => void;
 
   addMaterial: (val: Material) => void; 
+  updateMaterial: (val: Material) => Promise<void>; // Added updateMaterial
   addAsset: (val: Asset) => void; 
   addRoutine: (val: MaintenanceRoutine) => void; 
   updateRoutine: (val: MaintenanceRoutine) => void; 
@@ -63,14 +64,18 @@ interface MasterDataContextType {
   addApprovalRule: (rule: ApprovalRule) => void;
   deleteApprovalRule: (id: string) => void;
   
-  // Numerator Functions
   addNumerator: (num: Numerator) => void;
   updateNumerator: (num: Numerator) => void;
   getNextId: (type: DocumentType) => Promise<string>; 
   
-  // Helper for generic clients
   addClient: (val: any) => Promise<void>;
   addSupplier: (val: any) => Promise<void>;
+  
+  addPurchaseRequest: (pr: PurchaseRequest) => Promise<void>;
+  updatePurchaseRequest: (pr: PurchaseRequest) => Promise<void>;
+  
+  // New Automation
+  checkAutomaticReplenishment: (materialIds: string[]) => Promise<string[]>; // Returns messages
 }
 
 const MasterDataContext = createContext<MasterDataContextType | undefined>(undefined);
@@ -90,7 +95,6 @@ export const MasterDataProvider = ({ children }: { children?: React.ReactNode })
   const [machineTypes, setMachineTypes] = useState<string[]>([]);
   const [vehicleTypes, setVehicleTypes] = useState<string[]>([]);
   
-  // Warehouse State
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [warehouseLocations, setWarehouseLocations] = useState<WarehouseLocation[]>([]);
 
@@ -99,34 +103,29 @@ export const MasterDataProvider = ({ children }: { children?: React.ReactNode })
   const [materials, setMaterials] = useState<Material[]>([]);
   const [assets, setAssets] = useState<Asset[]>([]);
   const [routines, setRoutines] = useState<MaintenanceRoutine[]>([]);
+  const [maintenanceOrders, setMaintenanceOrders] = useState<MaintenanceOrder[]>([]);
   const [checklistModels, setChecklistModels] = useState<ChecklistModel[]>([]);
   const [checklistExecutions, setChecklistExecutions] = useState<ChecklistExecution[]>([]);
   const [rfqs, setRfqs] = useState<RFQ[]>([]);
+  const [purchaseRequests, setPurchaseRequests] = useState<PurchaseRequest[]>([]);
   
-  // Users & Areas
   const [users, setUsers] = useState<User[]>([]);
   const [areas, setAreas] = useState<Area[]>([]);
 
   const [approvalRules, setApprovalRules] = useState<ApprovalRule[]>([]);
   const [numerators, setNumerators] = useState<Numerator[]>([]);
 
-  // --- HELPER: Subscribe to simple list collections ---
-  
+  // --- SUBSCRIPTIONS (Keep existing code) ---
   useEffect(() => {
-    // Defaults for UI params
     setRegions(['Buenos Aires', 'CABA', 'Córdoba', 'Santa Fe', 'Mendoza', 'Tucumán', 'Entre Ríos']);
     setUoms(['Unidad (UN)', 'Litro (LT)', 'Metro (MT)', 'Kilo (KG)', 'Metro Cuadrado (M2)', 'Metro Cúbico (M3)']);
     setMachineTypes(['Pesada', 'Liviana', 'Herramienta de Mano', 'CNC']);
     setVehicleTypes(['Utilitario', 'Camión', 'Automóvil', 'Autoelevador']);
   }, []);
 
-  // --- FIRESTORE SUBSCRIPTIONS ---
-
-  // USERS Subscription
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'users'), (snap) => {
         if(snap.empty) {
-            // Create default admin if empty
             const adminPermissions = SYSTEM_MODULES.reduce((acc, m) => {
                 acc[m.id] = 'ADMIN';
                 return acc;
@@ -140,7 +139,7 @@ export const MasterDataProvider = ({ children }: { children?: React.ReactNode })
                 email: 'admin@system.com', 
                 legajo: 'ADM-001', 
                 role: 'ADMIN' as any, 
-                permissions: adminPermissions, // All permissions ADMIN
+                permissions: adminPermissions, 
                 profile: 'Admin',
                 areaId: 'AREA-ADM'
             };
@@ -151,7 +150,6 @@ export const MasterDataProvider = ({ children }: { children?: React.ReactNode })
     return () => unsub();
   }, []);
 
-  // AREAS Subscription (Mocked via Firestore or Local defaults if empty)
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'areas'), (snap) => {
         if (snap.empty) {
@@ -224,6 +222,14 @@ export const MasterDataProvider = ({ children }: { children?: React.ReactNode })
   }, []);
 
   useEffect(() => {
+    const q = query(collection(db, 'maintenance_orders'));
+    const unsub = onSnapshot(q, (snap) => {
+        setMaintenanceOrders(snap.docs.map(d => ({ id: d.id, ...d.data() } as MaintenanceOrder)));
+    });
+    return () => unsub();
+  }, []);
+
+  useEffect(() => {
     const unsub = onSnapshot(collection(db, 'checklist_models'), (snap) => {
         setChecklistModels(snap.docs.map(d => ({ id: d.id, ...d.data() } as ChecklistModel)));
     });
@@ -231,7 +237,6 @@ export const MasterDataProvider = ({ children }: { children?: React.ReactNode })
   }, []);
 
   useEffect(() => {
-    // Order by timestamp desc
     const q = query(collection(db, 'checklist_executions'), orderBy('timestamp', 'desc'));
     const unsub = onSnapshot(q, (snap) => {
         setChecklistExecutions(snap.docs.map(d => ({ id: d.id, ...d.data() } as ChecklistExecution)));
@@ -239,10 +244,16 @@ export const MasterDataProvider = ({ children }: { children?: React.ReactNode })
     return () => unsub();
   }, []);
 
-  // RFQs Subscription (Restored)
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'rfqs'), (snap) => {
         setRfqs(snap.docs.map(d => ({ id: d.id, ...d.data() } as RFQ)));
+    });
+    return () => unsub();
+  }, []);
+
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, 'purchase_requests'), (snap) => {
+        setPurchaseRequests(snap.docs.map(d => ({ id: d.id, ...d.data() } as PurchaseRequest)));
     });
     return () => unsub();
   }, []);
@@ -266,6 +277,7 @@ export const MasterDataProvider = ({ children }: { children?: React.ReactNode })
                 { id: 'NUM-MAT', name: 'Maestro de Materiales', prefix: '', currentValue: 2999999, length: 7, assignedType: 'MATERIAL' },
                 { id: 'NUM-SUP', name: 'Maestro de Proveedores', prefix: '', currentValue: 1399999, length: 7, assignedType: 'SUPPLIER' },
                 { id: 'NUM-CLI', name: 'Maestro de Clientes', prefix: '', currentValue: 1099999, length: 7, assignedType: 'CLIENT' },
+                { id: 'NUM-SOLPED', name: 'Solicitud de Pedido', prefix: 'SP-', currentValue: 10000, length: 6, assignedType: 'PURCHASE_REQUEST' },
             ];
             defaults.forEach(n => setDoc(doc(db, 'numerators', n.id), n));
         } else {
@@ -276,14 +288,13 @@ export const MasterDataProvider = ({ children }: { children?: React.ReactNode })
   }, []);
 
 
-  // --- ACTIONS (Writes to DB) ---
+  // --- ACTIONS ---
 
   const addRegion = (val: string) => setRegions(prev => [...prev, val]); 
   const addUom = (val: string) => setUoms(prev => [...prev, val]);
   const addMachineType = (val: string) => setMachineTypes(prev => [...prev, val]);
   const addVehicleType = (val: string) => setVehicleTypes(prev => [...prev, val]);
   
-  // User Actions
   const addUser = async (u: User) => {
       await setDoc(doc(db, 'users', u.id), u);
   };
@@ -291,7 +302,6 @@ export const MasterDataProvider = ({ children }: { children?: React.ReactNode })
       await updateDoc(doc(db, 'users', u.id), { ...u });
   };
   
-  // Area Actions
   const addArea = async (a: Area) => {
       await setDoc(doc(db, 'areas', a.id), a);
   };
@@ -299,7 +309,6 @@ export const MasterDataProvider = ({ children }: { children?: React.ReactNode })
       await deleteDoc(doc(db, 'areas', id));
   };
 
-  // Warehouse Actions
   const addWarehouse = async (val: Warehouse) => {
       await setDoc(doc(db, 'warehouses', val.id), val);
   };
@@ -307,7 +316,6 @@ export const MasterDataProvider = ({ children }: { children?: React.ReactNode })
       await updateDoc(doc(db, 'warehouses', val.id), { ...val });
   };
   
-  // Location Actions
   const addWarehouseLocation = async (val: WarehouseLocation) => {
       await setDoc(doc(db, 'warehouse_locations', val.id), val);
   };
@@ -317,6 +325,10 @@ export const MasterDataProvider = ({ children }: { children?: React.ReactNode })
 
   const addMaterial = async (val: Material) => {
       await setDoc(doc(db, 'materials', val.id), val);
+  };
+
+  const updateMaterial = async (val: Material) => {
+      await updateDoc(doc(db, 'materials', val.id), { ...val });
   };
 
   const addClient = async (val: any) => {
@@ -370,6 +382,14 @@ export const MasterDataProvider = ({ children }: { children?: React.ReactNode })
   const updateNumerator = async (num: Numerator) => {
       await updateDoc(doc(db, 'numerators', num.id), { ...num });
   };
+
+  const addPurchaseRequest = async (pr: PurchaseRequest) => {
+      await setDoc(doc(db, 'purchase_requests', pr.id), pr);
+  };
+
+  const updatePurchaseRequest = async (pr: PurchaseRequest) => {
+      await updateDoc(doc(db, 'purchase_requests', pr.id), { ...pr });
+  };
   
   const getNextId = async (type: DocumentType): Promise<string> => {
       const num = numerators.find(n => n.assignedType === type);
@@ -390,6 +410,67 @@ export const MasterDataProvider = ({ children }: { children?: React.ReactNode })
       }
   };
 
+  // --- AUTOMATION: Check Replenishment ---
+  const checkAutomaticReplenishment = async (materialIds: string[]): Promise<string[]> => {
+      const messages: string[] = [];
+      const uniqueIds = Array.from(new Set(materialIds));
+
+      // Calculate logic for EACH material passed
+      for (const matId of uniqueIds) {
+          const material = materials.find(m => m.id === matId);
+          if (!material || material.minStock <= 0) continue; // Skip if no min stock set
+
+          // 1. Calculate RESERVED Stock from Open Maintenance Orders
+          let reservedQty = 0;
+          maintenanceOrders.forEach(order => {
+              if (order.status !== MaintenanceStatus.CLOSED && order.assignedMaterials) {
+                  const assignment = order.assignedMaterials.find(am => am.materialId === matId);
+                  if (assignment) reservedQty += assignment.quantity;
+              }
+          });
+
+          // 2. Available Stock
+          const availableStock = material.stock - reservedQty;
+
+          // 3. Check Condition
+          if (availableStock < material.minStock) {
+              // 4. Check if ALREADY has a PENDING SolPed to avoid duplicates
+              const hasPendingRequest = purchaseRequests.some(pr => 
+                  pr.status === RequestStatus.PENDING && 
+                  pr.items.some(item => item.materialId === matId)
+              );
+
+              if (!hasPendingRequest) {
+                  // 5. Generate SolPed
+                  const quantityToRequest = Math.max(material.minStock - availableStock, 1); // Buy at least deficit
+                  
+                  // Use internal helper for ID to avoid race conditions with hook state
+                  const prNum = await getNextId('PURCHASE_REQUEST'); 
+                  
+                  const newRequest: PurchaseRequest = {
+                      id: `PR-AUTO-${Date.now()}-${Math.floor(Math.random()*1000)}`,
+                      number: prNum,
+                      date: new Date().toISOString().split('T')[0],
+                      requesterId: 'SYSTEM',
+                      requesterName: 'Sistema (Reposición Automática)',
+                      origin: 'WAREHOUSE', // Triggered by stock logic
+                      status: RequestStatus.PENDING,
+                      items: [{
+                          materialId: material.id,
+                          description: `${material.code} - ${material.description}`,
+                          quantity: quantityToRequest,
+                          unit: material.unitOfMeasure
+                      }]
+                  };
+
+                  await addPurchaseRequest(newRequest);
+                  messages.push(`Se generó SolPed automática ${prNum} para ${material.description} (Stock Disp: ${availableStock})`);
+              }
+          }
+      }
+      return messages;
+  };
+
   return (
     <MasterDataContext.Provider value={{
       regions,
@@ -403,9 +484,11 @@ export const MasterDataProvider = ({ children }: { children?: React.ReactNode })
       materials,
       assets,
       routines,
+      maintenanceOrders,
       checklistModels,
       checklistExecutions,
       rfqs,
+      purchaseRequests,
       users,
       areas,
       approvalRules,
@@ -419,6 +502,7 @@ export const MasterDataProvider = ({ children }: { children?: React.ReactNode })
       addWarehouseLocation,
       updateWarehouseLocation,
       addMaterial,
+      updateMaterial,
       addClient,
       addSupplier,
       addAsset,
@@ -436,7 +520,10 @@ export const MasterDataProvider = ({ children }: { children?: React.ReactNode })
       addUser,
       updateUser,
       addArea,
-      deleteArea
+      deleteArea,
+      addPurchaseRequest,
+      updatePurchaseRequest,
+      checkAutomaticReplenishment
     }}>
       {children}
     </MasterDataContext.Provider>

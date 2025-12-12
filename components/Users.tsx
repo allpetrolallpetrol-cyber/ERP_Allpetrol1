@@ -212,7 +212,7 @@ const UserModal = ({ user, onClose, onSave }: { user: Partial<User> | null, onCl
                                             <div>
                                                 <input 
                                                     type="text" 
-                                                    className={`w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-accent outline-none ${imgError ? 'border-red-300 bg-red-50' : 'border-zinc-300'}`}
+                                                    className={`w-full px-3 py-2 border rounded-lg text-sm bg-white focus:ring-2 focus:ring-accent outline-none ${imgError ? 'border-red-300' : 'border-zinc-300'}`}
                                                     placeholder="https://ejemplo.com/foto.jpg"
                                                     value={formData.avatarUrl || ''}
                                                     onChange={(e) => handleAvatarUrlChange(e.target.value)}

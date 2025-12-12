@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { jsPDF } from 'jspdf';
 import { MaintenanceOrder, MaintenanceStatus, MaintenanceType } from '../../types';
 import { useMasterData } from '../../contexts/MasterDataContext';
+import { useUI } from '../../contexts/UIContext';
 import { 
     X, 
     Printer, 
@@ -25,7 +26,8 @@ interface OrderDetailModalProps {
 }
 
 export const OrderDetailModal = ({ order, allOrders, onClose, onUpdateOrder, readOnly = false }: OrderDetailModalProps) => {
-    const { materials, users, assets } = useMasterData();
+    const { materials, users, assets, checkAutomaticReplenishment } = useMasterData();
+    const { showToast } = useUI();
     const [selectedMaterialId, setSelectedMaterialId] = useState('');
     const [materialQty, setMaterialQty] = useState(1);
 
@@ -129,7 +131,7 @@ export const OrderDetailModal = ({ order, allOrders, onClose, onUpdateOrder, rea
         doc.save(`OT-${order.number}.pdf`);
     };
 
-    const handleAddMaterial = () => {
+    const handleAddMaterial = async () => {
         if (!selectedMaterialId) return;
         
         const existingIdx = order.assignedMaterials.findIndex(m => m.materialId === selectedMaterialId);
@@ -143,7 +145,17 @@ export const OrderDetailModal = ({ order, allOrders, onClose, onUpdateOrder, rea
         }
 
         const updatedOrder = { ...order, assignedMaterials: newMaterials };
+        
+        // 1. Update Order
         onUpdateOrder(updatedOrder);
+        
+        // 2. Trigger Auto-Replenishment Check (Async)
+        // We pass ALL assigned material IDs to check, in case adding this one triggers the limit
+        const messages = await checkAutomaticReplenishment([selectedMaterialId]);
+        if (messages.length > 0) {
+            messages.forEach(msg => showToast(msg, 'info'));
+        }
+
         setSelectedMaterialId('');
         setMaterialQty(1);
     };

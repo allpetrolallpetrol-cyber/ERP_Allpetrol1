@@ -26,12 +26,14 @@ export const ACCESS_LEVELS: { value: AccessLevel, label: string, color: string }
 // New Granular Structure
 export const SYSTEM_MODULES = [
     // Comercial
-    { id: 'COMMERCIAL_PROCUREMENT', category: 'Comercial', label: 'Compras y Proveedores', description: 'RFQ, Cotizaciones y Órdenes de Compra' },
+    { id: 'COMMERCIAL_REQUESTS', category: 'Comercial', label: 'Solicitudes (SolPed)', description: 'Creación de pedidos internos de compra' },
+    { id: 'COMMERCIAL_PROCUREMENT', category: 'Comercial', label: 'Gestión de Compras', description: 'RFQ, Cotizaciones y Órdenes de Compra' },
     { id: 'COMMERCIAL_SALES', category: 'Comercial', label: 'Ventas y Clientes', description: 'Pedidos de venta y facturación' },
     { id: 'COMMERCIAL_CONFIG', category: 'Comercial', label: 'Configuración y Reglas', description: 'Esquemas de liberación y parámetros' },
     
     // Datos Maestros
     { id: 'MASTER_DATA_GENERAL', category: 'Datos Maestros', label: 'ABM General', description: 'Gestión de Artículos, Activos y Tablas' },
+    { id: 'MASTER_DATA_IMPORT', category: 'Datos Maestros', label: 'Importación Masiva', description: 'Carga de datos desde Excel/CSV' },
     
     // Mantenimiento
     { id: 'MAINTENANCE_DASHBOARD', category: 'Mantenimiento', label: 'Tablero de Órdenes', description: 'Ver y gestionar órdenes de trabajo (Kanban/Lista)' },
@@ -62,7 +64,7 @@ export interface User {
 }
 
 // System Configuration
-export type DocumentType = 'RFQ' | 'PURCHASE_ORDER' | 'MAINTENANCE_ORDER' | 'WORK_REQUEST' | 'STOCK_MOVEMENT' | 'MATERIAL' | 'SUPPLIER' | 'CLIENT';
+export type DocumentType = 'RFQ' | 'PURCHASE_ORDER' | 'MAINTENANCE_ORDER' | 'WORK_REQUEST' | 'STOCK_MOVEMENT' | 'MATERIAL' | 'SUPPLIER' | 'CLIENT' | 'PURCHASE_REQUEST';
 
 export interface Numerator {
     id: string;
@@ -94,14 +96,16 @@ export enum OrderStatus {
 }
 
 export interface RFQItem {
-  materialId: string;
-  description: string; // Copied from Material for display/snapshot
+  materialId?: string; // Optional: Can be non-codified
+  description: string; // Copied from Material OR Free text
   quantity: number;
   targetSupplierIds?: string[]; // New: Suppliers selected specifically for this item
+  purchaseRequestId?: string; // Link back to SolPed
 }
 
 export interface QuoteItemDetail {
-  materialId: string;
+  materialId: string; // Keep ID if codified, or description hash if not
+  description?: string; // Fallback for non-codified matching
   unitPrice: number;
 }
 
@@ -126,6 +130,30 @@ export interface RFQ {
   status: OrderStatus;
   winnerSupplierId?: string; // Who got the PO
   requiredApproverId?: string; // ID of the user who must approve this
+}
+
+// --- NEW: PURCHASE REQUESTS (SolPed) ---
+export enum RequestStatus {
+    PENDING = 'Pendiente',
+    PROCESSED = 'Procesada', // Converted to RFQ
+    REJECTED = 'Rechazada'
+}
+
+export interface PurchaseRequest {
+    id: string;
+    number: string;
+    date: string;
+    requesterId: string; // User ID
+    requesterName: string;
+    origin: 'MANUAL' | 'MAINTENANCE' | 'WAREHOUSE';
+    referenceId?: string; // Link to OT or Warehouse Alert
+    status: RequestStatus;
+    items: {
+        materialId?: string; // Optional
+        description: string; // Mandatory
+        quantity: number;
+        unit?: string;
+    }[];
 }
 
 export interface CommercialDocument {
