@@ -18,7 +18,7 @@ import {
   LogOut
 } from 'lucide-react';
 import Commercial from './components/commercial/index'; 
-import MasterData from './components/MasterData';
+import { MasterData } from './components/MasterData';
 import Maintenance from './components/maintenance/index'; 
 import Warehouse from './components/Warehouse';
 import UserManagement from './components/Users';
