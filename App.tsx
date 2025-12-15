@@ -24,7 +24,7 @@ import Warehouse from './components/Warehouse';
 import UserManagement from './components/Users';
 import { NotificationsBtn } from './components/NotificationsBtn'; // NEW
 import { Login } from './components/Login';
-import { MasterDataProvider } from './contexts/MasterDataContext';
+import { MasterDataProvider, useMasterData } from './contexts/MasterDataContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { UIProvider, useUI } from './contexts/UIContext';
 import { User, AccessLevel } from './types';
@@ -114,6 +114,7 @@ const Layout = ({ children }: { children?: React.ReactNode }) => {
   const location = useLocation();
   const { userProfile, logout } = useAuth(); 
   const { showConfirm, showToast } = useUI(); // Use UI Context
+  const { companySettings } = useMasterData(); // Access Company Settings for Sidebar
 
   // Close sidebar on route change on mobile
   useEffect(() => {
@@ -175,32 +176,56 @@ const Layout = ({ children }: { children?: React.ReactNode }) => {
           }
         `}
       >
-        <div className={`h-16 flex items-center border-b border-zinc-800/50 bg-zinc-900/50 backdrop-blur-sm shrink-0 transition-all duration-300 ${isSidebarOpen ? 'justify-between px-4' : 'justify-center'}`}>
+        <div className={`py-4 flex flex-col border-b border-zinc-800/50 bg-zinc-900/50 backdrop-blur-sm shrink-0 transition-all duration-300 min-h-[4rem] relative ${isSidebarOpen ? 'items-start px-4' : 'items-center px-0'}`}>
           
-          {/* Logo Section - Only Visible when Open */}
-          {isSidebarOpen && (
-            <div className="flex items-center space-x-2 overflow-hidden whitespace-nowrap animate-in fade-in slide-in-from-left-2">
-                <Command className="text-accent shrink-0" size={24} />
-                <h1 className="text-lg font-bold tracking-wider text-white">PyME <span className="text-accent">ERP</span></h1>
-            </div>
+          {/* Main App Brand */}
+          <div className="flex items-center justify-between w-full mb-3">
+              <div className={`flex items-center ${isSidebarOpen ? 'justify-start' : 'justify-center w-full'}`}>
+                  <Command className="text-accent shrink-0" size={24} />
+                  {isSidebarOpen && <h1 className="ml-2 text-lg font-bold tracking-wider text-white whitespace-nowrap animate-in fade-in">PyME <span className="text-accent">ERP</span></h1>}
+              </div>
+              
+              {/* Toggle Button - Desktop Only */}
+              {isSidebarOpen && (
+                  <button 
+                    onClick={toggleSidebar} 
+                    className="hidden md:flex p-1 rounded-lg hover:bg-zinc-800 transition-colors"
+                    title="Contraer menú"
+                  >
+                    <ChevronLeft size={20} className="text-zinc-400 hover:text-white" />
+                  </button>
+              )}
+          </div>
+
+          {/* Company Branding - BELOW App Name */}
+          {isSidebarOpen && companySettings?.name && (
+              <div className="w-full flex items-center space-x-3 bg-zinc-800/40 p-2 rounded-lg border border-zinc-800 animate-in slide-in-from-left-2 fade-in duration-500">
+                  {companySettings.logoUrl ? (
+                      <img src={companySettings.logoUrl} alt="Logo" className="w-8 h-8 object-contain bg-white rounded p-0.5 shrink-0" />
+                  ) : (
+                      <div className="w-8 h-8 bg-zinc-700 rounded flex items-center justify-center text-xs font-bold shrink-0">
+                          {companySettings.name.substring(0,2).toUpperCase()}
+                      </div>
+                  )}
+                  <div className="overflow-hidden">
+                      <p className="text-xs font-bold text-white truncate" title={companySettings.name}>{companySettings.name}</p>
+                  </div>
+              </div>
           )}
-
-          {/* Toggle Button - DESKTOP ONLY */}
-          {/* On mobile, we use the backdrop or the main header button to close, keeping sidebar clean */}
-          <button 
-            onClick={toggleSidebar} 
-            className="hidden md:flex p-1.5 rounded-lg hover:bg-zinc-800 transition-colors"
-            title={isSidebarOpen ? "Contraer menú" : "Expandir menú"}
-          >
-            {isSidebarOpen ? (
-                <ChevronLeft size={20} className="text-zinc-400 hover:text-white" />
-            ) : (
-                <Menu size={24} className="text-accent animate-pulse" /> 
-            )}
-          </button>
         </div>
+        
+        {/* Toggle Button for Collapsed State (Centered) */}
+        {!isSidebarOpen && (
+             <button 
+                onClick={toggleSidebar} 
+                className="hidden md:flex w-full py-2 justify-center hover:bg-zinc-800 transition-colors border-b border-zinc-800/50"
+                title="Expandir menú"
+              >
+                <Menu size={20} className="text-zinc-400" />
+              </button>
+        )}
 
-        <nav className="flex-1 py-6 px-3 space-y-1.5 overflow-y-auto custom-scrollbar overflow-x-hidden">
+        <nav className="flex-1 py-4 px-3 space-y-1.5 overflow-y-auto custom-scrollbar overflow-x-hidden">
           <SidebarItem to="/" icon={HomeIcon} label="Home" active={location.pathname === "/"} collapsed={!isSidebarOpen} />
           
           {hasModuleAccess('COMMERCIAL') && (

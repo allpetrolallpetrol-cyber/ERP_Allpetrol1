@@ -45,10 +45,12 @@ export const DataImporter = () => {
             headers = 'descripcion;unidad;stock;minimo;costo;ubicacion'; 
             filename = 'template_materiales.csv';
         } else if (importType === 'CLIENT') {
-            headers = 'razon_social;cuit;contacto;email;direccion';
+            // Updated Headers
+            headers = 'razon_social;cuit;direccion;emails_separados_coma;nombre_contacto;telefono_contacto';
             filename = 'template_clientes.csv';
         } else {
-            headers = 'razon_social;cuit;contacto;email;condicion_pago';
+            // Updated Headers
+            headers = 'razon_social;cuit;direccion;condicion_pago;emails_separados_coma;nombre_contacto;telefono_contacto';
             filename = 'template_proveedores.csv';
         }
 
@@ -104,27 +106,65 @@ export const DataImporter = () => {
                 } else if (importType === 'CLIENT') {
                     if (!row.razon_social) continue;
                     const newId = await getNextId('CLIENT');
+                    
+                    // Parse Multiple Emails
+                    const emailString = row.emails_separados_coma || row.email || '';
+                    const emails = emailString.split(',').map((e:string) => e.trim()).filter((e:string) => e.length > 0);
+                    
+                    // Parse Contact
+                    const contacts = [];
+                    if (row.nombre_contacto || row.telefono_contacto) {
+                        contacts.push({
+                            name: row.nombre_contacto || 'Contacto Principal',
+                            phone: row.telefono_contacto || '',
+                            email: emails[0] || '', // Default first email to first contact
+                            role: 'Importado'
+                        });
+                    }
+
                     await addClient({
                         id: newId,
                         businessName: row.razon_social,
                         cuit: row.cuit || '',
-                        contactName: row.contacto || '',
-                        email: row.email || '',
                         address: row.direccion || '',
-                        conditionIVA: 'Responsable Inscripto'
+                        conditionIVA: 'Responsable Inscripto',
+                        emails: emails,
+                        contacts: contacts,
+                        // Legacy support
+                        contactName: row.nombre_contacto || '',
+                        email: emails[0] || ''
                     });
                 } else if (importType === 'SUPPLIER') {
                     if (!row.razon_social) continue;
                     const newId = await getNextId('SUPPLIER');
+                    
+                    // Parse Multiple Emails
+                    const emailString = row.emails_separados_coma || row.email || '';
+                    const emails = emailString.split(',').map((e:string) => e.trim()).filter((e:string) => e.length > 0);
+                    
+                    // Parse Contact
+                    const contacts = [];
+                    if (row.nombre_contacto || row.telefono_contacto) {
+                        contacts.push({
+                            name: row.nombre_contacto || 'Contacto Principal',
+                            phone: row.telefono_contacto || '',
+                            email: emails[0] || '', 
+                            role: 'Importado'
+                        });
+                    }
+
                     await addSupplier({
                         id: newId,
                         businessName: row.razon_social,
                         cuit: row.cuit || '',
-                        contactName: row.contacto || '',
-                        email: row.email || '',
+                        address: row.direccion || '',
                         paymentTerms: row.condicion_pago || '',
                         conditionIVA: 'Responsable Inscripto',
-                        address: ''
+                        emails: emails,
+                        contacts: contacts,
+                        // Legacy support
+                        contactName: row.nombre_contacto || '',
+                        email: emails[0] || ''
                     });
                 }
                 count++;

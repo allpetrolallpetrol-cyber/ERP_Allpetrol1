@@ -75,6 +75,17 @@ export interface Numerator {
     assignedType: DocumentType; // Vinculación funcional
 }
 
+export interface CompanySettings {
+    name: string;
+    address: string;
+    phone: string;
+    taxId: string; // CUIT / RFC
+    logoUrl?: string;
+    primaryColor?: string;
+    email: string;
+    website?: string;
+}
+
 // Commercial Configuration
 export interface ApprovalRule {
     id: string;
@@ -91,14 +102,15 @@ export enum OrderStatus {
   PENDING_APPROVAL = 'Pendiente Aprobación',
   APPROVED = 'Aprobado',
   REJECTED = 'Rechazado',
-  CONVERTED_TO_PO = 'OC Generada',
-  CLOSED = 'Cerrada' // Final state for fully adjudicated RFQs
+  CONVERTED_TO_PO = 'OC Generada', // Open PO
+  CLOSED = 'Cerrada' // Final state (Fully Received or Manually Closed)
 }
 
 export interface RFQItem {
   materialId?: string; // Optional: Can be non-codified
   description: string; // Copied from Material OR Free text
   quantity: number;
+  receivedQuantity?: number; // New: Track partial deliveries
   targetSupplierIds?: string[]; // New: Suppliers selected specifically for this item
   purchaseRequestId?: string; // Link back to SolPed
 }
@@ -167,15 +179,28 @@ export interface CommercialDocument {
   items: any[];
 }
 
+export interface ContactPerson {
+    name: string;
+    phone: string;
+    email?: string;
+    role?: string;
+}
+
 // Master Data
 export interface Client {
   id: string;
   businessName: string; // Razón Social
   cuit: string;
   address: string;
-  contactName: string;
-  email?: string; // Supports multiple emails separated by comma
   conditionIVA: string; // Resp. Inscripto, Monotributo, etc.
+  
+  // New Enhanced Contact Info
+  emails: string[]; // List of emails for notifications
+  contacts: ContactPerson[]; // List of physical people
+  
+  // Deprecated (Keep optional for backward compat until migrated)
+  contactName?: string;
+  email?: string; 
 }
 
 export interface Supplier extends Client {

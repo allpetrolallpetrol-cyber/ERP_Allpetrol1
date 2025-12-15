@@ -11,6 +11,7 @@ import { AreasView } from './master-data/AreasView';
 import { WarehousesView } from './master-data/WarehousesView';
 import { DataImporter } from './master-data/DataImporter';
 import { NumeratorsView } from './master-data/NumeratorsView';
+import { CompanySettingsView } from './master-data/CompanySettingsView';
 
 type MainTab = 'STOCK' | 'MAINTENANCE' | 'PARTNERS' | 'CONFIG';
 
@@ -26,7 +27,7 @@ export const MasterData = () => {
         if (tab === 'STOCK') setSubTab('MATERIALS');
         if (tab === 'MAINTENANCE') setSubTab('ASSETS');
         if (tab === 'PARTNERS') setSubTab('CLIENTS');
-        if (tab === 'CONFIG') setSubTab('AREAS');
+        if (tab === 'CONFIG') setSubTab('COMPANY');
     };
 
     const TabButton = ({ label, active, onClick, level = 'MAIN' }: { label: string, active: boolean, onClick: () => void, level?: 'MAIN' | 'SUB' }) => {
@@ -117,6 +118,7 @@ export const MasterData = () => {
                     )}
                     {mainTab === 'CONFIG' && (
                         <>
+                            <TabButton label="Empresa" active={subTab === 'COMPANY'} onClick={() => setSubTab('COMPANY')} level="SUB" />
                             <TabButton label="Áreas" active={subTab === 'AREAS'} onClick={() => setSubTab('AREAS')} level="SUB" />
                             <TabButton label="Numeradores Documentos" active={subTab === 'NUMERATORS'} onClick={() => setSubTab('NUMERATORS')} level="SUB" />
                         </>
@@ -138,6 +140,7 @@ export const MasterData = () => {
                         {mainTab === 'PARTNERS' && subTab === 'CLIENTS' && <PartnersView type="CLIENT" />}
                         {mainTab === 'PARTNERS' && subTab === 'SUPPLIERS' && <PartnersView type="SUPPLIER" />}
 
+                        {mainTab === 'CONFIG' && subTab === 'COMPANY' && <CompanySettingsView />}
                         {mainTab === 'CONFIG' && subTab === 'AREAS' && <AreasView />}
                         {mainTab === 'CONFIG' && subTab === 'NUMERATORS' && <NumeratorsView />}
                     </div>

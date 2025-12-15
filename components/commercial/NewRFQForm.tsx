@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Package, X, CheckCircle, Edit2, Trash2, Mail, Archive, FileText, Briefcase, Search, Eraser, Plus, PenTool } from 'lucide-react';
+import { Package, X, CheckCircle, Edit2, Trash2, Mail, Archive, FileText, Briefcase, Search, Eraser, Plus, PenTool, AlertCircle } from 'lucide-react';
 import { useMasterData } from '../../contexts/MasterDataContext';
 import { RFQ, OrderStatus, RFQItem, Supplier } from '../../types';
 
@@ -201,18 +201,36 @@ export const NewRFQForm = ({ initialData, onSave, onCancel }: { initialData?: RF
         };
     };
 
-    const handleSend = async () => {
-        if(items.length === 0) { alert("Debe agregar items."); return; }
-        const rfq = await createRFQObject(OrderStatus.SENT);
-        alert(`📧 Enviando solicitudes de cotización a:\n${rfq.selectedSuppliers.map(s => s.name).join('\n')}`);
+    const validateAndSave = async (status: OrderStatus) => {
+        if(items.length === 0) { 
+            alert("Debe agregar al menos un item."); 
+            return; 
+        }
+
+        // VALIDATION: Check if ALL items have at least one supplier
+        const itemsWithoutSuppliers = items.filter(i => !i.targetSupplierIds || i.targetSupplierIds.length === 0);
+        
+        if (itemsWithoutSuppliers.length > 0) {
+            alert(`Error: Hay ${itemsWithoutSuppliers.length} item(s) sin proveedores asignados. Debe editar los items marcados en rojo y asignarles proveedores.`);
+            return;
+        }
+
+        if (uniqueSuppliers.length === 0) {
+            alert("Error crítico: No hay proveedores seleccionados en el global.");
+            return;
+        }
+
+        const rfq = await createRFQObject(status);
+        
+        if (status === OrderStatus.SENT) {
+            alert(`📧 Enviando solicitudes de cotización a:\n${rfq.selectedSuppliers.map(s => s.name).join('\n')}`);
+        }
+        
         onSave(rfq);
     };
 
-    const handleDraft = async () => {
-        if(items.length === 0) { alert("Debe agregar items."); return; }
-        const rfq = await createRFQObject(OrderStatus.DRAFT);
-        onSave(rfq);
-    };
+    const handleSend = () => validateAndSave(OrderStatus.SENT);
+    const handleDraft = () => validateAndSave(OrderStatus.DRAFT);
 
     return (
         <div className="bg-white p-6 rounded-xl shadow-lg border border-slate-200 animate-in fade-in slide-in-from-bottom-4">
@@ -398,49 +416,59 @@ export const NewRFQForm = ({ initialData, onSave, onCancel }: { initialData?: RF
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {items.map((it, idx) => (
-                                            <tr key={idx} className="border-b last:border-0 hover:bg-slate-50 transition-colors">
-                                                <td className="px-4 py-3 font-medium text-slate-700">
-                                                    {it.description}
-                                                    {it.materialId ? 
-                                                        <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-50 text-green-700 border border-green-200">COD</span>
-                                                        : 
-                                                        <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-500 border border-slate-200">LIBRE</span>
-                                                    }
-                                                </td>
-                                                <td className="text-center px-4 py-3 font-mono bg-slate-50">{it.quantity}</td>
-                                                <td className="px-4 py-3">
-                                                    <div className="flex flex-wrap gap-1">
-                                                        {it.targetSupplierIds?.map(sid => {
-                                                            const sup = suppliers.find(s => s.id === sid);
-                                                            const sName = (sup as any)?.name || sup?.businessName || 'Desc.';
-                                                            return (
-                                                                <span key={sid} className="group relative text-[10px] bg-blue-50 border border-blue-100 px-2 py-1 rounded text-blue-700 flex items-center hover:bg-blue-100 cursor-default transition-colors">
-                                                                    {sName}
-                                                                    <button 
-                                                                        onClick={() => removeSupplierFromItem(idx, sid)}
-                                                                        className="ml-1 text-blue-400 hover:text-red-500 hidden group-hover:inline-block"
-                                                                        title="Quitar este proveedor"
-                                                                    >
-                                                                        <X size={10} />
-                                                                    </button>
-                                                                </span>
-                                                            )
-                                                        })}
-                                                    </div>
-                                                </td>
-                                                <td className="px-4 py-3 text-right">
-                                                    <div className="flex items-center justify-end space-x-1">
-                                                        <button onClick={() => editItem(idx)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors" title="Editar Item">
-                                                            <Edit2 size={16}/>
-                                                        </button>
-                                                        <button onClick={() => removeItem(idx)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors" title="Eliminar Item">
-                                                            <Trash2 size={16}/>
-                                                        </button>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        ))}
+                                        {items.map((it, idx) => {
+                                            const hasSuppliers = it.targetSupplierIds && it.targetSupplierIds.length > 0;
+                                            return (
+                                                <tr key={idx} className={`border-b last:border-0 hover:bg-slate-50 transition-colors ${!hasSuppliers ? 'bg-red-50 hover:bg-red-100' : ''}`}>
+                                                    <td className="px-4 py-3 font-medium text-slate-700">
+                                                        {it.description}
+                                                        {it.materialId ? 
+                                                            <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-50 text-green-700 border border-green-200">COD</span>
+                                                            : 
+                                                            <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-500 border border-slate-200">LIBRE</span>
+                                                        }
+                                                        {!hasSuppliers && (
+                                                            <div className="text-[10px] text-red-600 font-bold flex items-center mt-1">
+                                                                <AlertCircle size={10} className="mr-1"/> Faltan Proveedores
+                                                            </div>
+                                                        )}
+                                                    </td>
+                                                    <td className="text-center px-4 py-3 font-mono bg-slate-50">{it.quantity}</td>
+                                                    <td className="px-4 py-3">
+                                                        <div className="flex flex-wrap gap-1">
+                                                            {hasSuppliers ? it.targetSupplierIds?.map(sid => {
+                                                                const sup = suppliers.find(s => s.id === sid);
+                                                                const sName = (sup as any)?.name || sup?.businessName || 'Desc.';
+                                                                return (
+                                                                    <span key={sid} className="group relative text-[10px] bg-blue-50 border border-blue-100 px-2 py-1 rounded text-blue-700 flex items-center hover:bg-blue-100 cursor-default transition-colors">
+                                                                        {sName}
+                                                                        <button 
+                                                                            onClick={() => removeSupplierFromItem(idx, sid)}
+                                                                            className="ml-1 text-blue-400 hover:text-red-500 hidden group-hover:inline-block"
+                                                                            title="Quitar este proveedor"
+                                                                        >
+                                                                            <X size={10} />
+                                                                        </button>
+                                                                    </span>
+                                                                )
+                                                            }) : (
+                                                                <span className="text-xs text-red-500 italic">Asigne proveedores editando el item.</span>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-4 py-3 text-right">
+                                                        <div className="flex items-center justify-end space-x-1">
+                                                            <button onClick={() => editItem(idx)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors" title="Editar Item">
+                                                                <Edit2 size={16}/>
+                                                            </button>
+                                                            <button onClick={() => removeItem(idx)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors" title="Eliminar Item">
+                                                                <Trash2 size={16}/>
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            )
+                                        })}
                                     </tbody>
                                 </table>
                             </div>

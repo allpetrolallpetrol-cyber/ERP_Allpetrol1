@@ -9,10 +9,11 @@ import {
   setDoc, 
   deleteDoc,
   query,
-  orderBy
+  orderBy,
+  getDoc
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { ApprovalRule, Material, Asset, MaintenanceRoutine, MaintenanceOrder, MaintenanceStatus, ChecklistModel, ChecklistExecution, Numerator, DocumentType, Warehouse, WarehouseLocation, Client, Supplier, User, Area, SYSTEM_MODULES, AccessLevel, RFQ, PurchaseRequest, RequestStatus } from '../types';
+import { ApprovalRule, Material, Asset, MaintenanceRoutine, MaintenanceOrder, MaintenanceStatus, ChecklistModel, ChecklistExecution, Numerator, DocumentType, Warehouse, WarehouseLocation, Client, Supplier, User, Area, SYSTEM_MODULES, AccessLevel, RFQ, PurchaseRequest, RequestStatus, CompanySettings } from '../types';
 
 interface MasterDataContextType {
   regions: string[];
@@ -41,6 +42,8 @@ interface MasterDataContextType {
 
   approvalRules: ApprovalRule[];
   numerators: Numerator[]; 
+  companySettings: CompanySettings | null;
+  updateCompanySettings: (settings: CompanySettings) => Promise<void>;
 
   addRegion: (val: string) => void;
   addUom: (val: string) => void;
@@ -70,6 +73,8 @@ interface MasterDataContextType {
   
   addClient: (val: any) => Promise<void>;
   addSupplier: (val: any) => Promise<void>;
+  
+  updateRFQ: (rfq: RFQ) => Promise<void>; // Exposed for Warehouse receipt
   
   addPurchaseRequest: (pr: PurchaseRequest) => Promise<void>;
   updatePurchaseRequest: (pr: PurchaseRequest) => Promise<void>;
@@ -114,6 +119,8 @@ export const MasterDataProvider = ({ children }: { children?: React.ReactNode })
 
   const [approvalRules, setApprovalRules] = useState<ApprovalRule[]>([]);
   const [numerators, setNumerators] = useState<Numerator[]>([]);
+  
+  const [companySettings, setCompanySettings] = useState<CompanySettings | null>(null);
 
   // --- SUBSCRIPTIONS (Keep existing code) ---
   useEffect(() => {
@@ -166,6 +173,27 @@ export const MasterDataProvider = ({ children }: { children?: React.ReactNode })
         setAreas(snap.docs.map(d => ({ id: d.id, ...d.data() } as Area)));
     });
     return () => unsub();
+  }, []);
+
+  // Fetch Company Settings
+  useEffect(() => {
+      const unsub = onSnapshot(doc(db, 'settings', 'company'), (docSnap) => {
+          if (docSnap.exists()) {
+              setCompanySettings(docSnap.data() as CompanySettings);
+          } else {
+              // Clean default state as requested
+              setCompanySettings({
+                  name: '',
+                  address: '',
+                  phone: '',
+                  taxId: '',
+                  email: '',
+                  logoUrl: '',
+                  website: ''
+              });
+          }
+      });
+      return () => unsub();
   }, []);
 
   useEffect(() => {
@@ -383,12 +411,20 @@ export const MasterDataProvider = ({ children }: { children?: React.ReactNode })
       await updateDoc(doc(db, 'numerators', num.id), { ...num });
   };
 
+  const updateRFQ = async (rfq: RFQ) => {
+      await updateDoc(doc(db, 'rfqs', rfq.id), { ...rfq });
+  };
+
   const addPurchaseRequest = async (pr: PurchaseRequest) => {
       await setDoc(doc(db, 'purchase_requests', pr.id), pr);
   };
 
   const updatePurchaseRequest = async (pr: PurchaseRequest) => {
       await updateDoc(doc(db, 'purchase_requests', pr.id), { ...pr });
+  };
+
+  const updateCompanySettings = async (settings: CompanySettings) => {
+      await setDoc(doc(db, 'settings', 'company'), settings);
   };
   
   const getNextId = async (type: DocumentType): Promise<string> => {
@@ -493,6 +529,7 @@ export const MasterDataProvider = ({ children }: { children?: React.ReactNode })
       areas,
       approvalRules,
       numerators,
+      companySettings,
       addRegion,
       addUom,
       addMachineType,
@@ -516,6 +553,8 @@ export const MasterDataProvider = ({ children }: { children?: React.ReactNode })
       deleteApprovalRule,
       addNumerator,
       updateNumerator,
+      updateRFQ,
+      updateCompanySettings,
       getNextId,
       addUser,
       updateUser,

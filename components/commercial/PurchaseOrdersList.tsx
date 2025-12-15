@@ -1,11 +1,23 @@
 
 import React, { useState, useMemo } from 'react';
-import { RFQ, OrderStatus } from '../../types';
+import { RFQ, OrderStatus, CompanySettings } from '../../types';
 import { Eye, Printer, X, Building2, Calendar, FileText, Download, Search } from 'lucide-react';
 import { jsPDF } from 'jspdf';
+import { useMasterData } from '../../contexts/MasterDataContext';
+
+// --- Helper to load image for PDF ---
+const loadImage = (url: string): Promise<HTMLImageElement> => {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = "Anonymous";
+        img.src = url;
+        img.onload = () => resolve(img);
+        img.onerror = (e) => reject(e);
+    });
+};
 
 // --- PDF Generation Logic ---
-const generatePurchaseOrderPDF = (po: RFQ, supplierName: string, total: number) => {
+const generatePurchaseOrderPDF = async (po: RFQ, supplierName: string, total: number, companySettings: CompanySettings | null) => {
     const doc = new jsPDF();
     const winnerQuote = po.quotes.find(q => q.isSelected);
 
@@ -13,16 +25,45 @@ const generatePurchaseOrderPDF = (po: RFQ, supplierName: string, total: number) 
     doc.setFillColor(30, 41, 59); // Slate 900
     doc.rect(0, 0, 210, 40, 'F');
     
-    // Logo / Company Name
+    // Dynamic Company Data
+    const companyName = companySettings?.name || "Empresa No Configurada";
+    const companyAddress = companySettings?.address || "Dirección no especificada";
+    const companyTax = `CUIT: ${companySettings?.taxId || '-'} | IVA Responsable Inscripto`;
+    const contactInfo = `${companySettings?.email || ''} ${companySettings?.phone ? ' | ' + companySettings.phone : ''}`;
+
+    // Logo Logic
+    let logoAdded = false;
+    if (companySettings?.logoUrl) {
+        try {
+            // Try to load logo. Note: CORS might block this if the server doesn't allow it.
+            // In a real prod env, a proxy or base64 string is safer.
+            const img = await loadImage(companySettings.logoUrl);
+            // Calculate aspect ratio to fit in a box of 30x30 max
+            const ratio = img.width / img.height;
+            let w = 25;
+            let h = 25 / ratio;
+            if (h > 25) { h = 25; w = 25 * ratio; }
+            
+            doc.addImage(img, 'PNG', 15, 7.5, w, h);
+            logoAdded = true;
+        } catch (e) {
+            console.warn("No se pudo cargar el logo para el PDF", e);
+        }
+    }
+
+    // Text Positioning (Adjust based on logo presence)
+    const textX = logoAdded ? 45 : 15;
+
     doc.setTextColor(255, 255, 255);
-    doc.setFontSize(24);
+    doc.setFontSize(logoAdded ? 18 : 22);
     doc.setFont("helvetica", "bold");
-    doc.text("ArgERP Industrial S.A.", 15, 20);
+    doc.text(companyName, textX, 18);
     
-    doc.setFontSize(10);
+    doc.setFontSize(9);
     doc.setFont("helvetica", "normal");
-    doc.text("Av. Corrientes 1234, CABA, Argentina", 15, 28);
-    doc.text("CUIT: 30-11223344-5 | IVA Responsable Inscripto", 15, 33);
+    doc.text(companyAddress, textX, 26);
+    doc.text(companyTax, textX, 31);
+    doc.text(contactInfo, textX, 36);
 
     // PO Number Box
     doc.setFillColor(255, 255, 255);
@@ -50,7 +91,7 @@ const generatePurchaseOrderPDF = (po: RFQ, supplierName: string, total: number) 
     doc.setFontSize(10);
     doc.text(`Ref. Cotización: ${winnerQuote?.quoteReference || 'S/N'}`, 15, y); 
 
-    // Right side: Dates & Conditions (Improved Spacing)
+    // Right side: Dates & Conditions
     y = 55;
     
     // Line 1: Date
@@ -59,15 +100,16 @@ const generatePurchaseOrderPDF = (po: RFQ, supplierName: string, total: number) 
     doc.setFont("helvetica", "normal");
     doc.text(po.date, 195, y, { align: "right" });
     
-    y += 10; // Increased vertical space (was 8)
+    y += 10;
     
     // Line 2: Payment Terms
     doc.setFont("helvetica", "bold");
     doc.text("CONDICIÓN PAGO:", 135, y);
     doc.setFont("helvetica", "normal");
-    doc.text("30 Días FF", 195, y, { align: "right" }); 
+    // Ideally this comes from Supplier Master Data, simplified here
+    doc.text("Según Acuerdo Comercial", 195, y, { align: "right" }); 
 
-    y += 10; // Increased vertical space (was 8)
+    y += 10;
 
     // Line 3: Origin Reference
     doc.setFont("helvetica", "bold");
@@ -77,7 +119,7 @@ const generatePurchaseOrderPDF = (po: RFQ, supplierName: string, total: number) 
     doc.text(refText, 195, y, { align: "right" });
 
     // --- Items Table ---
-    y = 95; // Pushed down to clear header
+    y = 95;
     
     // Table Header
     doc.setFillColor(241, 245, 249); // Slate 100
@@ -96,12 +138,16 @@ const generatePurchaseOrderPDF = (po: RFQ, supplierName: string, total: number) 
         const unitPrice = quoteItem ? quoteItem.unitPrice : 0;
         const lineTotal = unitPrice * item.quantity;
 
-        doc.text(item.description, 20, y);
+        // Auto split text if description is too long
+        const splitDesc = doc.splitTextToSize(item.description, 100);
+        doc.text(splitDesc, 20, y);
+        
         doc.text(item.quantity.toString(), 130, y, { align: "center" });
         doc.text(`$${unitPrice.toLocaleString('es-AR', {minimumFractionDigits: 2})}`, 155, y, { align: "right" });
         doc.text(`$${lineTotal.toLocaleString('es-AR', {minimumFractionDigits: 2})}`, 190, y, { align: "right" });
         
-        y += 8;
+        // Adjust Y based on lines
+        y += (splitDesc.length * 5) + 3;
         
         if (y > 270) {
             doc.addPage();
@@ -110,7 +156,7 @@ const generatePurchaseOrderPDF = (po: RFQ, supplierName: string, total: number) 
     });
 
     // --- Totals ---
-    y += 10;
+    y += 5;
     doc.line(130, y, 195, y);
     y += 8;
     
@@ -146,13 +192,32 @@ const generatePurchaseOrderPDF = (po: RFQ, supplierName: string, total: number) 
     doc.text("Autorizado Por", 50, y + 5, { align: "center" });
     doc.text("Recibí Conforme (Proveedor)", 160, y + 5, { align: "center" });
 
+    // Footer Branding
+    doc.setFontSize(8);
+    doc.setTextColor(150);
+    doc.text(`${companyName} - Generado por PyME ERP`, 105, 290, { align: "center" });
+
     doc.save(`OC-${po.number}.pdf`);
 };
 
 const PurchaseOrderDetailModal = ({ po, onClose }: { po: RFQ, onClose: () => void }) => {
+    const { companySettings } = useMasterData();
     const winner = po.quotes.find(q => q.isSelected);
     const supplierName = winner?.supplierName || 'Proveedor Desconocido';
     const totalAmount = winner?.price || 0;
+    const [generatingPdf, setGeneratingPdf] = useState(false);
+
+    const handleDownloadPdf = async () => {
+        setGeneratingPdf(true);
+        try {
+            await generatePurchaseOrderPDF(po, supplierName, totalAmount, companySettings);
+        } catch (e) {
+            console.error(e);
+            alert("Error al generar PDF");
+        } finally {
+            setGeneratingPdf(false);
+        }
+    };
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in">
@@ -246,10 +311,11 @@ const PurchaseOrderDetailModal = ({ po, onClose }: { po: RFQ, onClose: () => voi
                         Cerrar
                     </button>
                     <button 
-                        onClick={() => generatePurchaseOrderPDF(po, supplierName, totalAmount)}
-                        className="px-6 py-2.5 bg-slate-900 text-white font-bold rounded-lg shadow-md hover:bg-slate-800 flex items-center transition-transform active:scale-95"
+                        onClick={handleDownloadPdf}
+                        disabled={generatingPdf}
+                        className="px-6 py-2.5 bg-slate-900 text-white font-bold rounded-lg shadow-md hover:bg-slate-800 flex items-center transition-transform active:scale-95 disabled:opacity-70"
                     >
-                        <Download size={18} className="mr-2"/> Descargar PDF Orden de Compra
+                        {generatingPdf ? 'Generando...' : <><Download size={18} className="mr-2"/> Descargar PDF Orden de Compra</>}
                     </button>
                 </div>
             </div>
