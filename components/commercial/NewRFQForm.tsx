@@ -154,9 +154,9 @@ export const NewRFQForm = ({ initialData, onSave, onCancel }: { initialData?: RF
         }
     };
 
-    const removeItem = (index: number) => {
+    const removeItem = (idx: number) => {
         const newItems = [...items];
-        newItems.splice(index, 1);
+        newItems.splice(idx, 1);
         setItems(newItems);
     };
 
@@ -233,317 +233,185 @@ export const NewRFQForm = ({ initialData, onSave, onCancel }: { initialData?: RF
     const handleDraft = () => validateAndSave(OrderStatus.DRAFT);
 
     return (
-        <div className="bg-white p-6 rounded-xl shadow-lg border border-slate-200 animate-in fade-in slide-in-from-bottom-4 h-full flex flex-col overflow-hidden">
-            <div className="flex justify-between items-center mb-6 border-b pb-4 shrink-0">
+        <div className="bg-white p-6 rounded-xl shadow-lg border border-slate-200 animate-in fade-in h-full flex flex-col overflow-hidden">
+            <div className="flex justify-between items-center mb-4 border-b pb-3 shrink-0">
                 <h3 className="text-xl font-bold text-slate-800 flex items-center">
                     <FileText className="mr-2 text-slate-600" /> {(initialData as RFQ)?.id ? 'Editar Borrador' : 'Nueva RFQ'}
                 </h3>
-                <button onClick={onCancel} className="text-slate-400 hover:text-slate-600"><X size={24}/></button>
+                <button onClick={onCancel} className="text-slate-400 hover:text-slate-600 p-1 hover:bg-slate-100 rounded-full transition-colors"><X size={24}/></button>
             </div>
 
-            <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-3 gap-8 pb-4">
-                {/* Left Column: Add Items */}
-                <div className="lg:col-span-2 flex flex-col space-y-6 overflow-hidden">
-                    <div className="bg-slate-50 p-5 rounded-xl border border-slate-200 shadow-inner shrink-0">
-                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-3">
-                            <h4 className="text-sm font-bold text-slate-700 uppercase flex items-center"><Package className="mr-2" size={16}/> 1. Agregar / Editar Ítem</h4>
+            <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-3 gap-6 pb-2">
+                {/* Left Column: Add Items - Flex container to control heights */}
+                <div className="lg:col-span-2 flex flex-col space-y-4 overflow-hidden">
+                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 shadow-inner shrink-0">
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-3 gap-2">
+                            <h4 className="text-xs font-bold text-slate-700 uppercase flex items-center"><Package className="mr-1.5" size={14}/> 1. Agregar / Editar Ítem</h4>
                             
                             {/* Toggle Mode */}
-                            <div className="flex bg-slate-200 p-1 rounded-lg self-start">
-                                <button 
-                                    onClick={() => { setItemMode('CODIFIED'); setFreeTextDescription(''); }}
-                                    className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${itemMode === 'CODIFIED' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}
-                                >
-                                    Catálogo
-                                </button>
-                                <button 
-                                    onClick={() => { setItemMode('FREE_TEXT'); setSelectedMaterialId(''); setSearchMaterialTerm(''); }}
-                                    className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${itemMode === 'FREE_TEXT' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}
-                                >
-                                    Libre
-                                </button>
+                            <div className="flex bg-slate-200 p-1 rounded-lg">
+                                <button onClick={() => { setItemMode('CODIFIED'); setFreeTextDescription(''); }} className={`px-2.5 py-1 text-[10px] font-bold rounded transition-all ${itemMode === 'CODIFIED' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}>Catálogo</button>
+                                <button onClick={() => { setItemMode('FREE_TEXT'); setSelectedMaterialId(''); setSearchMaterialTerm(''); }} className={`px-2.5 py-1 text-[10px] font-bold rounded transition-all ${itemMode === 'FREE_TEXT' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}>Libre</button>
                             </div>
                         </div>
                         
-                        <div className="grid grid-cols-1 md:grid-cols-12 gap-4 mb-4">
+                        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 mb-3">
                             <div className="md:col-span-8 relative">
-                                <label className="block text-xs font-semibold text-slate-500 mb-1">
-                                    {itemMode === 'CODIFIED' ? 'Buscar Material (Código o Nombre)' : 'Descripción del Material / Servicio'}
-                                </label>
-                                
+                                <label className="block text-[10px] font-bold text-slate-500 mb-1 uppercase tracking-wider">{itemMode === 'CODIFIED' ? 'Material' : 'Descripción'}</label>
                                 {itemMode === 'CODIFIED' ? (
                                     <div className="relative">
-                                        <input 
-                                            type="text" 
-                                            className={`w-full pl-9 pr-8 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-accent transition-all ${selectedMaterialId ? 'bg-green-50 border-green-200 text-green-800 font-medium' : 'bg-white border-slate-300'}`}
-                                            placeholder="Escriba para buscar..."
-                                            value={searchMaterialTerm}
-                                            onChange={(e) => {
-                                                setSearchMaterialTerm(e.target.value);
-                                                setShowMaterialDropdown(true);
-                                                if(selectedMaterialId) {
-                                                    setSelectedMaterialId(''); 
-                                                    setSelectedItemSuppliers([]);
-                                                }
-                                            }}
-                                            onFocus={() => setShowMaterialDropdown(true)}
-                                        />
-                                        <Search size={16} className="absolute left-3 top-2.5 text-slate-400" />
-                                        {searchMaterialTerm && (
-                                            <button 
-                                                onClick={clearMaterialSelection} 
-                                                className="absolute right-2 top-2 text-slate-400 hover:text-slate-600"
-                                            >
-                                                <X size={16} />
-                                            </button>
-                                        )}
-                                        
-                                        {/* Dropdown Results */}
+                                        <input type="text" className={`w-full pl-8 pr-8 py-1.5 border rounded-lg outline-none text-sm transition-all ${selectedMaterialId ? 'bg-green-50 border-green-200 text-green-800 font-bold' : 'bg-white border-slate-300'}`} placeholder="Escriba para buscar..." value={searchMaterialTerm} onChange={(e) => { setSearchMaterialTerm(e.target.value); setShowMaterialDropdown(true); if(selectedMaterialId) { setSelectedMaterialId(''); setSelectedItemSuppliers([]); } }} onFocus={() => setShowMaterialDropdown(true)} />
+                                        <Search size={14} className="absolute left-2.5 top-2.5 text-slate-400" />
+                                        {searchMaterialTerm && <button onClick={clearMaterialSelection} className="absolute right-2 top-2 text-slate-400 hover:text-slate-600"><X size={14} /></button>}
                                         {showMaterialDropdown && searchMaterialTerm && !selectedMaterialId && (
-                                            <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl max-h-60 overflow-y-auto">
-                                                {filteredMaterials.length > 0 ? (
-                                                    filteredMaterials.map(m => (
-                                                        <div 
-                                                            key={m.id} 
-                                                            onClick={() => handleSelectMaterial(m.id)}
-                                                            className="px-4 py-2 hover:bg-slate-50 cursor-pointer border-b border-slate-50 last:border-0"
-                                                        >
-                                                            <div className="font-bold text-slate-800 text-sm">{m.description}</div>
-                                                            <div className="text-xs text-slate-500 flex justify-between">
-                                                                <span>Cod: {m.code}</span>
-                                                                <span>Stock: {m.stock} {m.unitOfMeasure}</span>
-                                                            </div>
-                                                        </div>
-                                                    ))
-                                                ) : (
-                                                    <div className="px-4 py-3 text-sm text-slate-400 italic text-center">
-                                                        No se encontraron materiales.
+                                            <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl max-h-48 overflow-y-auto">
+                                                {filteredMaterials.length > 0 ? filteredMaterials.map(m => (
+                                                    <div key={m.id} onClick={() => handleSelectMaterial(m.id)} className="px-3 py-2 hover:bg-slate-50 cursor-pointer border-b border-slate-50 last:border-0 text-xs">
+                                                        <div className="font-bold text-slate-800">{m.description}</div>
+                                                        <div className="text-[10px] text-slate-500">Cod: {m.code} | Stock: {m.stock}</div>
                                                     </div>
-                                                )}
+                                                )) : <div className="px-3 py-2 text-[10px] text-slate-400 italic text-center">No encontrado.</div>}
                                             </div>
                                         )}
                                     </div>
                                 ) : (
                                     <div className="relative">
-                                        <input 
-                                            type="text" 
-                                            className="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-accent bg-white"
-                                            placeholder="Ej. Servicio de Mantenimiento..."
-                                            value={freeTextDescription}
-                                            onChange={(e) => setFreeTextDescription(e.target.value)}
-                                        />
-                                        <PenTool size={16} className="absolute left-3 top-2.5 text-slate-400" />
+                                        <input type="text" className="w-full pl-8 pr-3 py-1.5 border border-slate-300 rounded-lg text-sm bg-white outline-none" placeholder="Servicio o item libre..." value={freeTextDescription} onChange={(e) => setFreeTextDescription(e.target.value)} />
+                                        <PenTool size={14} className="absolute left-2.5 top-2.5 text-slate-400" />
                                     </div>
                                 )}
                             </div>
-
                             <div className="md:col-span-4">
-                                <label className="block text-xs font-semibold text-slate-500 mb-1">Cantidad</label>
+                                <label className="block text-[10px] font-bold text-slate-500 mb-1 uppercase tracking-wider">Cantidad</label>
                                 <div className="flex gap-2">
-                                    <input 
-                                        className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white text-slate-900 focus:ring-2 focus:ring-accent outline-none" 
-                                        type="number" 
-                                        placeholder="Cant." 
-                                        value={quantity}
-                                        onChange={e => setQuantity(parseFloat(e.target.value))}
-                                        min="0.1"
-                                    />
-                                    <button 
-                                        onClick={addItem} 
-                                        className="bg-slate-900 text-white px-4 rounded-lg hover:bg-slate-800 font-medium shadow-sm transition-transform active:scale-95 whitespace-nowrap flex items-center justify-center flex-1 md:flex-none"
-                                        title={items.find(i => i.materialId === selectedMaterialId && selectedMaterialId) ? 'Actualizar Item' : 'Agregar Item'}
-                                    >
-                                        {items.find(i => i.materialId === selectedMaterialId && selectedMaterialId) ? <Edit2 size={18}/> : <Plus size={20}/>} <span className="md:hidden ml-2">Agregar</span>
-                                    </button>
+                                    <input className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-sm font-bold text-right" type="number" value={quantity} onChange={e => setQuantity(parseFloat(e.target.value))} min="0.1" />
+                                    <button onClick={addItem} className="bg-slate-900 text-white px-3 rounded-lg hover:bg-black flex items-center justify-center transition-all transform active:scale-95 shadow-sm" title="Agregar item a la lista"><Plus size={18}/></button>
                                 </div>
                             </div>
                         </div>
 
-                        {/* Supplier Selection Area for Current Item */}
+                        {/* Supplier Selection for item - Controlled height */}
                         {(selectedMaterialId || freeTextDescription) && (
-                            <div className="bg-white p-4 rounded-lg border border-slate-200 animate-in fade-in">
-                                <div className="flex justify-between items-center mb-3">
-                                    <label className="block text-xs font-bold text-slate-700">Proveedores para este ítem:</label>
-                                    <span className="text-[10px] bg-slate-100 px-2 py-1 rounded text-slate-500">
-                                        {selectedItemSuppliers.length} seleccionados
-                                    </span>
+                            <div className="bg-white p-3 rounded-lg border border-slate-200 animate-in fade-in">
+                                <div className="flex justify-between items-center mb-2">
+                                    <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-widest">Proveedores invitados:</label>
+                                    <span className="text-[9px] bg-slate-100 px-1.5 py-0.5 rounded font-bold text-slate-500">{selectedItemSuppliers.length} Seleccionados</span>
                                 </div>
-                                <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto custom-scrollbar p-1">
+                                <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto custom-scrollbar p-1">
                                     {sortedSuppliersForSelection.map(sup => {
                                         const mat = itemMode === 'CODIFIED' ? materials.find(m => m.id === selectedMaterialId) : null;
                                         const isLinked = mat?.assignedSupplierIds?.includes(sup.id);
                                         const isSelected = selectedItemSuppliers.includes(sup.id);
-                                        
-                                        // Safe name access
-                                        const supplierName = (sup as any).name || sup.businessName || 'Proveedor s/n';
-
+                                        const supplierName = (sup as any).name || sup.businessName || 'Prov.';
                                         return (
-                                            <button 
-                                                key={sup.id}
-                                                onClick={() => toggleItemSupplier(sup.id)}
-                                                className={`text-xs px-3 py-2 rounded-lg border flex items-center transition-all shadow-sm ${
-                                                    isSelected 
-                                                    ? 'bg-blue-600 border-blue-600 text-white font-semibold' 
-                                                    : isLinked 
-                                                        ? 'bg-green-50 border-green-200 text-green-800 hover:bg-green-100'
-                                                        : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
-                                                }`}
-                                            >
-                                                {isSelected ? <CheckCircle size={14} className="mr-1.5"/> : isLinked ? <Briefcase size={14} className="mr-1.5"/> : <div className="w-3.5 mr-1.5"/>}
+                                            <button key={sup.id} onClick={() => toggleItemSupplier(sup.id)} className={`text-[10px] px-2 py-1 rounded-md border flex items-center transition-all ${isSelected ? 'bg-blue-600 border-blue-600 text-white font-bold' : isLinked ? 'bg-green-50 border-green-200 text-green-700 hover:bg-green-100' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
+                                                {isSelected ? <CheckCircle size={10} className="mr-1"/> : isLinked ? <Briefcase size={10} className="mr-1"/> : <div className="w-2.5 mr-1"/>}
                                                 {supplierName}
-                                                {isLinked && !isSelected && <span className="ml-1.5 text-[9px] bg-white/50 border border-green-200 px-1 rounded uppercase tracking-wider">Sugerido</span>}
                                             </button>
                                         );
                                     })}
                                 </div>
-                                {suppliers.length === 0 && <p className="text-xs text-slate-400 italic">No hay proveedores registrados en el sistema.</p>}
                             </div>
                         )}
                     </div>
 
-                    {/* Items Table - Added Scroll and no-scrollbar */}
-                    <div className="flex-1 flex flex-col overflow-hidden">
-                        <h4 className="text-sm font-bold text-slate-700 uppercase mb-2 shrink-0">Items Agregados ({items.length})</h4>
+                    {/* Items Table - Elastic and responsive */}
+                    <div className="flex-1 flex flex-col overflow-hidden min-h-[150px]">
+                        <h4 className="text-[10px] font-bold text-slate-500 uppercase mb-1 tracking-widest">Items Agregados ({items.length})</h4>
                         {items.length > 0 ? (
-                            <div className="border border-slate-200 rounded-lg shadow-sm flex flex-col flex-1 overflow-hidden">
+                            <div className="border border-slate-200 rounded-xl overflow-hidden shadow-sm flex flex-col flex-1 bg-white">
                                 <div className="overflow-y-auto no-scrollbar flex-1">
-                                    <table className="w-full text-sm bg-white">
-                                        <thead className="bg-slate-100 text-slate-600 font-semibold border-b border-slate-200 sticky top-0 z-10">
+                                    <table className="w-full text-xs text-left">
+                                        <thead className="bg-slate-50 text-slate-500 font-bold border-b sticky top-0 z-10 uppercase text-[9px] tracking-tighter">
                                             <tr>
-                                                <th className="text-left px-4 py-2 min-w-[200px]">Descripción</th>
-                                                <th className="text-center px-4 py-2">Cant.</th>
-                                                <th className="text-left px-4 py-2 min-w-[200px]">Proveedores Asignados</th>
-                                                <th className="px-4 py-2 w-20 text-right">Acciones</th>
+                                                <th className="p-3">Descripción</th>
+                                                <th className="p-3 text-center">Cant.</th>
+                                                <th className="p-3">Proveedores</th>
+                                                <th className="p-3 text-right"></th>
                                             </tr>
                                         </thead>
-                                        <tbody>
+                                        <tbody className="divide-y divide-slate-100">
                                             {items.map((it, idx) => {
                                                 const hasSuppliers = it.targetSupplierIds && it.targetSupplierIds.length > 0;
                                                 return (
-                                                    <tr key={idx} className={`border-b last:border-0 hover:bg-slate-50 transition-colors ${!hasSuppliers ? 'bg-red-50 hover:bg-red-100' : ''}`}>
-                                                        <td className="px-4 py-3 font-medium text-slate-700">
+                                                    <tr key={idx} className={`hover:bg-slate-50 transition-colors ${!hasSuppliers ? 'bg-red-50' : ''}`}>
+                                                        <td className="p-3 font-medium text-slate-700">
                                                             {it.description}
-                                                            {it.materialId ? 
-                                                                <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-50 text-green-700 border border-green-200">COD</span>
-                                                                : 
-                                                                <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-500 border border-slate-200">LIBRE</span>
-                                                            }
-                                                            {!hasSuppliers && (
-                                                                <div className="text-[10px] text-red-600 font-bold flex items-center mt-1">
-                                                                    <AlertCircle size={10} className="mr-1"/> Faltan Proveedores
-                                                                </div>
-                                                            )}
+                                                            <span className={`ml-2 text-[9px] px-1 rounded ${it.materialId ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}`}>{it.materialId ? 'COD' : 'LIB'}</span>
                                                         </td>
-                                                        <td className="text-center px-4 py-3 font-mono bg-slate-50">{it.quantity}</td>
-                                                        <td className="px-4 py-3">
-                                                            <div className="flex flex-wrap gap-1">
-                                                                {hasSuppliers ? it.targetSupplierIds?.map(sid => {
-                                                                    const sup = suppliers.find(s => s.id === sid);
-                                                                    const sName = (sup as any)?.name || sup?.businessName || 'Desc.';
-                                                                    return (
-                                                                        <span key={sid} className="group relative text-[10px] bg-blue-50 border border-blue-100 px-2 py-1 rounded text-blue-700 flex items-center hover:bg-blue-100 cursor-default transition-colors">
-                                                                            {sName}
-                                                                            <button 
-                                                                                onClick={() => removeSupplierFromItem(idx, sid)}
-                                                                                className="ml-1 text-blue-400 hover:text-red-500 hidden group-hover:inline-block"
-                                                                                title="Quitar este proveedor"
-                                                                            >
-                                                                                <X size={10} />
-                                                                            </button>
-                                                                        </span>
-                                                                    )
-                                                                }) : (
-                                                                    <span className="text-xs text-red-500 italic">Asigne proveedores editando el item.</span>
-                                                                )}
+                                                        <td className="p-3 text-center font-bold">{it.quantity}</td>
+                                                        <td className="p-3">
+                                                            <div className="flex flex-wrap gap-1 max-w-[200px]">
+                                                                {it.targetSupplierIds?.map(sid => {
+                                                                    const sName = suppliers.find(s => s.id === sid)?.businessName?.substring(0, 10) || 'Prov.';
+                                                                    return <span key={sid} className="text-[9px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded border border-blue-100">{sName}..</span>;
+                                                                })}
+                                                                {!hasSuppliers && <span className="text-[9px] text-red-500 font-bold">Sin proveedores!</span>}
                                                             </div>
                                                         </td>
-                                                        <td className="px-4 py-3 text-right">
-                                                            <div className="flex items-center justify-end space-x-1">
-                                                                <button onClick={() => editItem(idx)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors" title="Editar Item">
-                                                                    <Edit2 size={16}/>
-                                                                </button>
-                                                                {/* Fix: changed 'index' to 'idx' which is the correct variable name in the map function */}
-                                                                <button onClick={() => removeItem(idx)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors" title="Eliminar Item">
-                                                                    <Trash2 size={16}/>
-                                                                </button>
+                                                        <td className="p-3 text-right">
+                                                            <div className="flex items-center justify-end gap-1">
+                                                                <button onClick={() => editItem(idx)} className="p-1 text-blue-400 hover:text-blue-600 hover:bg-blue-50 rounded"><Edit2 size={14}/></button>
+                                                                <button onClick={() => removeItem(idx)} className="p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded"><Trash2 size={14}/></button>
                                                             </div>
                                                         </td>
                                                     </tr>
-                                                )
+                                                );
                                             })}
                                         </tbody>
                                     </table>
                                 </div>
                             </div>
                         ) : (
-                            <div className="p-8 text-center bg-slate-50 rounded-lg border border-dashed border-slate-300 flex-1 flex flex-col justify-center">
-                                <p className="text-slate-400 text-sm">No hay items agregados aún.</p>
+                            <div className="flex-1 border-2 border-dashed border-slate-200 rounded-xl flex flex-col items-center justify-center text-slate-400 bg-slate-50/50">
+                                <AlertCircle size={24} className="mb-2 opacity-20"/>
+                                <p className="text-xs">No hay ítems cargados.</p>
                             </div>
                         )}
                     </div>
                 </div>
 
-                {/* Right Column: Summary */}
-                <div className="lg:col-span-1 overflow-y-auto no-scrollbar">
-                    <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-lg">
-                        <h4 className="text-sm font-bold text-slate-800 uppercase mb-4 flex items-center"><Briefcase className="mr-2" size={16}/> Resumen de Proveedores</h4>
+                {/* Right Column: Summary - Responsive Height */}
+                <div className="lg:col-span-1 overflow-hidden flex flex-col">
+                    <div className="bg-slate-900 p-5 rounded-2xl shadow-xl flex flex-col flex-1 text-white overflow-hidden">
+                        <h4 className="text-xs font-bold uppercase mb-4 flex items-center tracking-widest"><Briefcase className="mr-2" size={16}/> Resumen Petición</h4>
                         
-                        <div className="mb-6">
-                            <p className="text-xs text-slate-500 mb-3">
-                                Los siguientes proveedores recibirán una solicitud de cotización basada en los items asignados:
-                            </p>
+                        <div className="flex-1 overflow-y-auto no-scrollbar mb-4 pr-1">
+                            <p className="text-[10px] text-slate-400 mb-3 uppercase font-bold tracking-tighter">Proveedores Invitados:</p>
                             {uniqueSuppliers.length > 0 ? (
                                 <ul className="space-y-2">
-                                    {uniqueSuppliers.map(s => {
-                                        const sName = (s as any).name || s.businessName || 'Proveedor';
-                                        return (
-                                            <li key={s.id} className="flex items-center text-sm text-slate-700 bg-slate-50 p-2 rounded border border-slate-100">
-                                                <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-xs font-bold mr-3 text-slate-600 shrink-0">
-                                                    {sName.substring(0, 2).toUpperCase()}
-                                                </div>
-                                                <div className="flex-1 overflow-hidden">
-                                                    <div className="font-semibold truncate" title={sName}>{sName}</div>
-                                                    <div className="text-xs text-slate-400 truncate">CUIT: {s.cuit}</div>
-                                                </div>
-                                            </li>
-                                        );
-                                    })}
+                                    {uniqueSuppliers.map(s => (
+                                        <li key={s.id} className="flex items-center text-xs bg-white/10 p-2 rounded-lg border border-white/5 backdrop-blur-md">
+                                            <div className="w-6 h-6 rounded-full bg-accent flex items-center justify-center text-[10px] font-bold mr-2">
+                                                {(s as any).name?.substring(0, 1) || s.businessName?.substring(0,1)}
+                                            </div>
+                                            <div className="flex-1 overflow-hidden">
+                                                <div className="font-bold truncate text-[11px]">{s.businessName}</div>
+                                                <div className="text-[9px] text-slate-400 font-mono">CUIT: {s.cuit}</div>
+                                            </div>
+                                        </li>
+                                    ))}
                                 </ul>
                             ) : (
-                                <div className="text-xs text-slate-400 italic text-center p-4 border border-dashed rounded bg-slate-50">Ningún proveedor seleccionado aún.</div>
+                                <div className="text-xs text-slate-500 italic text-center py-6 border border-white/10 rounded-xl">Sin proveedores asignados.</div>
                             )}
                         </div>
 
-                        <div className="border-t pt-4">
-                            <div className="flex justify-between items-center mb-2">
-                                <span className="text-sm text-slate-600">Items Totales:</span>
-                                <span className="font-bold text-slate-800">{items.length}</span>
+                        <div className="border-t border-white/10 pt-4 shrink-0">
+                            <div className="flex justify-between items-center mb-1 text-xs">
+                                <span className="text-slate-400">Total Ítems:</span>
+                                <span className="font-bold">{items.length}</span>
                             </div>
-                            <div className="flex justify-between items-center mb-6">
-                                <span className="text-sm text-slate-600">Proveedores Totales:</span>
-                                <span className="font-bold text-slate-800">{uniqueSuppliers.length}</span>
-                            </div>
-                            
-                            <div className="flex flex-col md:flex-row gap-2">
-                                <button 
-                                    onClick={handleDraft} 
-                                    disabled={items.length === 0}
-                                    className="flex-1 bg-white border border-slate-300 text-slate-700 py-3 rounded-lg hover:bg-slate-50 shadow-sm flex items-center justify-center font-bold transition-transform active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    <Archive size={18} className="mr-2"/> Borrador
-                                </button>
-                                <button 
-                                    onClick={handleSend} 
-                                    disabled={items.length === 0}
-                                    className="flex-1 bg-accent text-white py-3 rounded-lg hover:bg-blue-600 shadow-md flex items-center justify-center font-bold transition-transform active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    <Mail size={18} className="mr-2"/> Enviar
-                                </button>
+                            <div className="flex justify-between items-center mb-6 text-xs">
+                                <span className="text-slate-400">Total Proveedores:</span>
+                                <span className="font-bold">{uniqueSuppliers.length}</span>
                             </div>
                             
-                            <button onClick={onCancel} className="w-full mt-3 py-2 text-slate-500 font-medium hover:text-slate-800 text-sm">
-                                Cancelar
-                            </button>
+                            <div className="grid grid-cols-2 gap-2 mb-2">
+                                <button onClick={handleDraft} disabled={items.length === 0} className="bg-white/10 text-white py-3 rounded-xl hover:bg-white/20 font-bold text-xs transition-all disabled:opacity-30 border border-white/10 shadow-lg flex items-center justify-center"><Archive size={16} className="mr-1.5"/> Borrador</button>
+                                <button onClick={handleSend} disabled={items.length === 0} className="bg-accent text-white py-3 rounded-xl hover:bg-teal-700 font-bold text-xs transition-all disabled:opacity-30 shadow-lg flex items-center justify-center"><Mail size={16} className="mr-1.5"/> Enviar</button>
+                            </div>
+                            <button onClick={onCancel} className="w-full text-slate-400 py-1.5 text-[10px] font-bold hover:text-white transition-colors">DESCARTAR / CANCELAR</button>
                         </div>
                     </div>
                 </div>

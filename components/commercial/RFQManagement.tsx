@@ -177,12 +177,12 @@ export const RFQManagement = ({ rfqs, onUpdate, onEditDraft, onSplitAdjudicate }
         return (
             <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 animate-in fade-in h-full flex flex-col overflow-hidden">
                 <button onClick={() => setSelectedRfq(null)} className="mb-4 text-sm text-slate-500 hover:text-slate-800 flex items-center shrink-0"><ArrowRight className="rotate-180 mr-1" size={14}/> Volver al listado</button>
-                <div className="flex justify-between items-start mb-6 border-b pb-4 shrink-0">
+                <div className="flex justify-between items-start mb-4 border-b pb-3 shrink-0">
                     <div>
                         <h3 className="text-xl font-bold text-slate-800">{selectedRfq.number}</h3>
-                        <p className="text-sm text-slate-500">Gestión de Cotizaciones y Adjudicación</p>
+                        <p className="text-sm text-slate-500 font-medium">Gestión de Cotizaciones y Adjudicación</p>
                     </div>
-                    <span className={`font-bold text-slate-700 px-3 py-1 rounded-lg ${
+                    <span className={`font-bold text-slate-700 px-3 py-1 rounded-lg text-sm ${
                         selectedRfq.status === OrderStatus.DRAFT ? 'bg-slate-200 text-slate-600' :
                         selectedRfq.status === OrderStatus.PENDING_APPROVAL ? 'bg-orange-100 text-orange-700' : 
                         'bg-blue-100 text-blue-700'}`
@@ -191,7 +191,7 @@ export const RFQManagement = ({ rfqs, onUpdate, onEditDraft, onSplitAdjudicate }
                     </span>
                 </div>
 
-                <div className="flex-1 overflow-y-auto no-scrollbar pr-1">
+                <div className="flex-1 overflow-y-auto no-scrollbar pr-1 pb-4">
                     {selectedRfq.status === OrderStatus.DRAFT && (
                         <div className="text-center py-12 bg-slate-50 rounded-lg border border-slate-200">
                             <AlertCircle className="mx-auto text-slate-400 mb-4" size={48} />
@@ -215,23 +215,44 @@ export const RFQManagement = ({ rfqs, onUpdate, onEditDraft, onSplitAdjudicate }
                                 }, 0);
                                 return (
                                     <div key={s.id} className="border rounded-xl bg-white shadow-sm overflow-hidden border-slate-200">
-                                        <div className="bg-slate-50 p-4 border-b flex flex-wrap justify-between items-center gap-3">
-                                            <h4 className="font-bold text-slate-800">{s.name}</h4>
-                                            <input className="w-full sm:w-64 px-3 py-1.5 border rounded-lg text-sm" placeholder="Ref. Cotización / Presupuesto" value={tempReferences[s.id] || ''} onChange={e => setTempReferences({...tempReferences, [s.id]: e.target.value})} />
+                                        <div className="bg-slate-50 p-3 border-b flex flex-wrap justify-between items-center gap-2">
+                                            <h4 className="font-bold text-slate-800 text-sm">{s.name}</h4>
+                                            <input className="w-full sm:w-64 px-2 py-1 border rounded-lg text-xs" placeholder="Ref. Cotización / Presupuesto" value={tempReferences[s.id] || ''} onChange={e => setTempReferences({...tempReferences, [s.id]: e.target.value})} />
                                         </div>
-                                        <table className="w-full text-sm">
-                                            <thead><tr className="bg-white text-slate-500 font-bold border-b"><th className="p-4 text-left">Item</th><th className="p-4 text-center">Cant.</th><th className="p-4 text-right">P.Unit ($)</th></tr></thead>
-                                            <tbody>
-                                                {supplierItems.map((i, idx) => (
-                                                    <tr key={idx} className="border-b last:border-0"><td className="p-4 font-medium">{i.description}</td><td className="p-4 text-center bg-slate-50 font-mono">x{i.quantity}</td><td className="p-4 text-right"><input type="number" className="w-32 border rounded px-2 py-1 text-right font-bold" value={tempUnitPrices[s.id]?.[getItemKey(i)] || ''} onChange={e => handleUnitPriceChange(s.id, getItemKey(i), e.target.value)} /></td></tr>
-                                                ))}
-                                            </tbody>
-                                            <tfoot className="bg-slate-50"><tr className="font-bold"><td colSpan={2} className="p-4 text-right">Total:</td><td className="p-4 text-right text-lg">${currentTotal.toLocaleString()}</td></tr></tfoot>
-                                        </table>
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full text-xs text-left">
+                                                <thead className="bg-white text-slate-500 font-bold border-b">
+                                                    <tr>
+                                                        <th className="p-3">Item</th>
+                                                        <th className="p-3 text-center">Cant.</th>
+                                                        <th className="p-3 text-right">P.Unit ($)</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {supplierItems.map((i, idx) => (
+                                                        <tr key={idx} className="border-b last:border-0 hover:bg-slate-50">
+                                                            <td className="p-3 font-medium">{i.description}</td>
+                                                            <td className="p-3 text-center bg-slate-50 font-mono">x{i.quantity}</td>
+                                                            <td className="p-3 text-right">
+                                                                <input type="number" className="w-24 border rounded px-2 py-1 text-right font-bold text-sm" value={tempUnitPrices[s.id]?.[getItemKey(i)] || ''} onChange={e => handleUnitPriceChange(s.id, getItemKey(i), e.target.value)} />
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                                <tfoot className="bg-slate-50">
+                                                    <tr className="font-bold">
+                                                        <td colSpan={2} className="p-3 text-right">Total:</td>
+                                                        <td className="p-3 text-right text-base">${currentTotal.toLocaleString()}</td>
+                                                    </tr>
+                                                </tfoot>
+                                            </table>
+                                        </div>
                                     </div>
                                 );
                             })}
-                            <div className="flex justify-end pt-4"><button onClick={() => handleLoadPrices(selectedRfq)} className="bg-slate-900 text-white px-8 py-3 rounded-xl font-bold shadow-lg">Guardar Cotizaciones</button></div>
+                            <div className="flex justify-end pt-2">
+                                <button onClick={() => handleLoadPrices(selectedRfq)} className="bg-slate-900 text-white px-8 py-3 rounded-xl font-bold shadow-lg transform transition-transform active:scale-95">Guardar Cotizaciones</button>
+                            </div>
                         </div>
                     )}
 
@@ -241,20 +262,23 @@ export const RFQManagement = ({ rfqs, onUpdate, onEditDraft, onSplitAdjudicate }
                                 const selection = selectedItemsForAdjudication[q.supplierId] || [];
                                 const total = q.items?.reduce((acc, it) => selection.includes(getItemKey(it)) ? acc + (it.unitPrice * (selectedRfq.items.find(ri => getItemKey(ri) === getItemKey(it))?.quantity || 0)) : acc, 0) || 0;
                                 return (
-                                    <div key={q.supplierId} className="border rounded-xl bg-white shadow-sm overflow-hidden flex flex-col">
-                                        <div className="p-4 bg-slate-50 border-b flex justify-between"><h4 className="font-bold text-slate-800">{q.supplierName}</h4><span className="text-xs font-mono">Ref: {q.quoteReference || 'N/A'}</span></div>
+                                    <div key={q.supplierId} className="border rounded-xl bg-white shadow-sm overflow-hidden flex flex-col hover:border-blue-300 transition-colors">
+                                        <div className="p-3 bg-slate-50 border-b flex justify-between items-center"><h4 className="font-bold text-slate-800 text-sm truncate">{q.supplierName}</h4><span className="text-[10px] font-mono bg-white px-1 rounded border">Ref: {q.quoteReference || 'N/A'}</span></div>
                                         <div className="p-4 flex-1">
-                                            <div className="text-2xl font-bold mb-4">${q.price.toLocaleString()} <span className="text-xs font-normal text-slate-400 block">Total Cotizado</span></div>
-                                            <div className="space-y-1.5">{selectedRfq.items.filter(i => !i.targetSupplierIds || i.targetSupplierIds.length === 0 || i.targetSupplierIds.includes(q.supplierId)).map(i => (
-                                                <div key={getItemKey(i)} onClick={() => toggleAdjudicationItem(q.supplierId, getItemKey(i))} className={`p-2 rounded text-xs cursor-pointer border flex justify-between items-center ${selection.includes(getItemKey(i)) ? 'bg-blue-50 border-blue-200' : 'bg-white border-transparent'}`}>
+                                            <div className="text-xl font-bold mb-3 text-slate-900">${q.price.toLocaleString()} <span className="text-[10px] font-normal text-slate-400 block uppercase tracking-wider">Total Cotizado</span></div>
+                                            <div className="space-y-1.5 max-h-48 overflow-y-auto custom-scrollbar pr-1">{selectedRfq.items.filter(i => !i.targetSupplierIds || i.targetSupplierIds.length === 0 || i.targetSupplierIds.includes(q.supplierId)).map(i => (
+                                                <div key={getItemKey(i)} onClick={() => toggleAdjudicationItem(q.supplierId, getItemKey(i))} className={`p-2 rounded text-[11px] cursor-pointer border flex justify-between items-center transition-all ${selection.includes(getItemKey(i)) ? 'bg-blue-600 border-blue-600 text-white font-semibold' : 'bg-white border-slate-100 text-slate-600 hover:bg-slate-50'}`}>
                                                     <span className="truncate flex-1 mr-2">{i.description}</span>
-                                                    <span className="font-mono font-bold">${q.items?.find(qi => getItemKey(qi) === getItemKey(i))?.unitPrice}</span>
+                                                    <span className={`font-mono ${selection.includes(getItemKey(i)) ? 'text-white' : 'text-slate-900 font-bold'}`}>${q.items?.find(qi => getItemKey(qi) === getItemKey(i))?.unitPrice}</span>
                                                 </div>
                                             ))}</div>
                                         </div>
                                         <div className="p-3 bg-slate-50 border-t flex justify-between items-center">
-                                            <span className="text-xs font-bold">Sel: ${total.toLocaleString()}</span>
-                                            <button onClick={() => onSplitAdjudicate(selectedRfq, q.supplierId, selection, total)} disabled={total === 0} className="bg-accent text-white px-3 py-1.5 rounded-lg text-xs font-bold disabled:opacity-50">Adjudicar</button>
+                                            <div>
+                                                <p className="text-[9px] text-slate-400 font-bold uppercase">Selección actual</p>
+                                                <span className="text-sm font-bold text-slate-800">${total.toLocaleString()}</span>
+                                            </div>
+                                            <button onClick={() => onSplitAdjudicate(selectedRfq, q.supplierId, selection, total)} disabled={total === 0} className="bg-accent text-white px-4 py-2 rounded-lg text-xs font-bold disabled:opacity-50 shadow-sm hover:bg-teal-700 transition-colors">Adjudicar</button>
                                         </div>
                                     </div>
                                 );
@@ -268,12 +292,12 @@ export const RFQManagement = ({ rfqs, onUpdate, onEditDraft, onSplitAdjudicate }
 
     return (
         <div className="h-full flex flex-col overflow-hidden">
-            <div className="flex-1 overflow-y-auto no-scrollbar space-y-4">
+            <div className="flex-1 overflow-y-auto no-scrollbar space-y-4 pr-1">
                 {visibleRfqs.map(rfq => (
-                    <div key={rfq.id} className="bg-white p-5 rounded-xl border border-slate-200 flex justify-between items-center shadow-sm hover:shadow-md transition-all">
+                    <div key={rfq.id} className="bg-white p-5 rounded-xl border border-slate-200 flex justify-between items-center shadow-sm hover:shadow-md transition-all group">
                         <div>
                             <div className="flex items-center space-x-3 mb-1">
-                                <span className="font-bold text-slate-800 text-lg">{rfq.number}</span>
+                                <span className="font-bold text-slate-800 text-lg group-hover:text-accent transition-colors">{rfq.number}</span>
                                 <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border uppercase ${
                                     rfq.status === OrderStatus.SENT ? 'bg-yellow-50 text-yellow-700 border-yellow-200' :
                                     rfq.status === OrderStatus.QUOTED ? 'bg-blue-50 text-blue-700 border-blue-200' :
@@ -282,17 +306,18 @@ export const RFQManagement = ({ rfqs, onUpdate, onEditDraft, onSplitAdjudicate }
                                     {rfq.status}
                                 </span>
                             </div>
-                            <p className="text-xs text-slate-500">{rfq.items.length} items • {rfq.selectedSuppliers.length} proveedores invitados</p>
+                            <p className="text-xs text-slate-500 font-medium">{rfq.items.length} items • {rfq.selectedSuppliers.length} proveedores invitados</p>
                         </div>
-                        <button onClick={() => setSelectedRfq(rfq)} className="bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200 px-4 py-2 rounded-lg text-sm font-medium flex items-center">
-                            Gestionar <ArrowRight size={16} className="ml-2"/>
+                        <button onClick={() => setSelectedRfq(rfq)} className="bg-slate-900 text-white hover:bg-black px-6 py-2.5 rounded-xl text-sm font-bold flex items-center shadow-md transition-all transform active:scale-95">
+                            Gestionar <ArrowRight size={18} className="ml-2"/>
                         </button>
                     </div>
                 ))}
                 {visibleRfqs.length === 0 && (
-                    <div className="text-center py-20 bg-white rounded-xl border border-dashed border-slate-300 text-slate-400">
-                        <AlertCircle className="mx-auto mb-4 opacity-10" size={48} />
-                        No hay peticiones en curso.
+                    <div className="h-full flex flex-col items-center justify-center py-20 bg-white/50 rounded-xl border-2 border-dashed border-slate-200 text-slate-400">
+                        <AlertCircle className="mx-auto mb-4 opacity-10" size={64} />
+                        <p className="font-bold text-lg">No hay peticiones en curso.</p>
+                        <p className="text-sm">Agrupe solicitudes desde la pestaña 'Solicitudes' para iniciar una RFQ.</p>
                     </div>
                 )}
             </div>

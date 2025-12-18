@@ -52,13 +52,13 @@ export default function Commercial() {
 
     if (subModule === 'LANDING') {
         return (
-            <div className="h-full flex flex-col items-center justify-center p-6 space-y-8 animate-in zoom-in-95 duration-300">
-                <div className="text-center mb-8">
+            <div className="h-full flex flex-col items-center justify-center p-6 space-y-8 animate-in zoom-in-95 duration-300 overflow-hidden">
+                <div className="text-center mb-4">
                     <h1 className="text-3xl font-bold text-slate-900 mb-2">Módulo Comercial</h1>
                     <p className="text-slate-500 text-lg">Seleccione el área de trabajo para comenzar</p>
                 </div>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full max-w-4xl">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full max-w-4xl px-4">
                     <button 
                         onClick={() => canEnterProcurement && setSubModule('PROCUREMENT')}
                         disabled={!canEnterProcurement}
@@ -100,21 +100,23 @@ export default function Commercial() {
     }
 
     return (
-        <div>
+        <div className="h-full flex flex-col overflow-hidden px-6 pt-4">
             <button 
                 onClick={() => setSubModule('LANDING')}
-                className="mb-6 flex items-center text-slate-500 hover:text-slate-900 transition-colors font-medium"
+                className="mb-4 flex items-center text-slate-500 hover:text-slate-900 transition-colors font-medium shrink-0"
             >
                 <ArrowRight className="rotate-180 mr-2" size={18} /> Volver al menú principal
             </button>
             
-            {subModule === 'PROCUREMENT' && canEnterProcurement && (
-                <ProcurementModule 
-                    initialTab={(location.state as any)?.tab} // Pass initial tab if from notification
-                />
-            )}
-            
-            {subModule === 'SALES' && hasAccessSales && <SalesModule />}
+            <div className="flex-1 overflow-hidden">
+                {subModule === 'PROCUREMENT' && canEnterProcurement && (
+                    <ProcurementModule 
+                        initialTab={(location.state as any)?.tab} // Pass initial tab if from notification
+                    />
+                )}
+                
+                {subModule === 'SALES' && hasAccessSales && <SalesModule />}
+            </div>
         </div>
     );
 }
