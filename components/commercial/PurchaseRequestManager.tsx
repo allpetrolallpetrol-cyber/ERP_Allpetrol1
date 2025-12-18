@@ -293,33 +293,37 @@ export const PurchaseRequestManager = ({ onCreateRFQ }: { onCreateRFQ: (items: R
     };
 
     return (
-        <div className="space-y-6">
-            <div className="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm border border-slate-200 shrink-0">
-                <h3 className="text-lg font-bold text-slate-800 flex items-center">
-                    <ShoppingCart className="mr-2 text-orange-600" /> Solicitudes de Pedido (SolPed)
+        <div className="space-y-4 h-full flex flex-col overflow-hidden">
+            {/* COMPACT HEADER */}
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-white p-3 px-4 rounded-xl shadow-sm border border-slate-200 shrink-0 gap-3">
+                <h3 className="text-md font-bold text-slate-800 flex items-center">
+                    <ShoppingCart className="mr-2 text-orange-600" size={20} /> Gestión de Solicitudes (SolPed)
                 </h3>
-                <button 
-                    onClick={() => setIsCreateModalOpen(true)}
-                    className="bg-orange-600 text-white px-5 py-2 rounded-lg font-bold shadow-md hover:bg-orange-700 transition-all flex items-center active:scale-95"
-                >
-                    <Plus size={20} className="mr-2"/> Nueva Solicitud
-                </button>
+                <div className="flex w-full md:w-auto gap-2">
+                    <div className="relative flex-1 md:w-64">
+                        <input className="w-full pl-9 pr-4 py-1.5 border border-slate-300 rounded-lg text-xs bg-white outline-none focus:ring-2 focus:ring-orange-400 transition-all" placeholder="Filtrar solicitudes..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+                        <Search size={14} className="absolute left-3 top-2.5 text-slate-400" />
+                    </div>
+                    <button 
+                        onClick={() => setIsCreateModalOpen(true)}
+                        className="bg-orange-600 text-white px-4 py-1.5 rounded-lg text-xs font-bold shadow-md hover:bg-orange-700 transition-all flex items-center active:scale-95 shrink-0"
+                    >
+                        <Plus size={16} className="mr-1"/> Nueva
+                    </button>
+                </div>
             </div>
 
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-[500px]">
-                <div className="p-4 border-b border-slate-100 flex flex-col md:flex-row gap-4 bg-slate-50/50">
-                    <div className="relative flex-1">
-                        <input className="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:ring-2 focus:ring-orange-400" placeholder="Buscar por número, solicitante o item..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
-                        <Search size={16} className="absolute left-3 top-2.5 text-slate-400" />
-                    </div>
-                    {selectedRequestIds.length > 0 && (
-                        <button onClick={handleProcessToRFQ} className="bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-md hover:bg-slate-800 flex items-center animate-in slide-in-from-right-2">
-                            Agrupar en RFQ ({selectedRequestIds.length}) <ArrowRight size={16} className="ml-2"/>
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col flex-1">
+                {selectedRequestIds.length > 0 && (
+                    <div className="p-2 border-b border-orange-100 bg-orange-50 flex items-center justify-between shrink-0 animate-in slide-in-from-top-2">
+                        <span className="text-[10px] font-bold text-orange-800 ml-2">Seleccionados: {selectedRequestIds.length} ítems</span>
+                        <button onClick={handleProcessToRFQ} className="bg-slate-900 text-white px-3 py-1 rounded-lg text-[10px] font-bold shadow-sm hover:bg-slate-800 flex items-center">
+                            Agrupar en RFQ <ArrowRight size={12} className="ml-1.5"/>
                         </button>
-                    )}
-                </div>
+                    </div>
+                )}
 
-                <div className="flex-1 overflow-auto custom-scrollbar">
+                <div className="flex-1 overflow-y-auto no-scrollbar">
                     <table className="w-full text-left text-sm">
                         <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200 sticky top-0 z-10">
                             <tr>
@@ -368,7 +372,7 @@ export const PurchaseRequestManager = ({ onCreateRFQ }: { onCreateRFQ: (items: R
                                                     <Zap size={14} className="mr-1.5"/> Generar OC Directa
                                                 </button>
                                             )}
-                                            {!allHaveContract && <span className="text-[10px] text-slate-400 italic">Requiere RFQ</span>}
+                                            {!allHaveContract && <span className="text-[10px] text-slate-400 italic">Requiere Cotización</span>}
                                         </td>
                                     </tr>
                                 )
@@ -376,7 +380,7 @@ export const PurchaseRequestManager = ({ onCreateRFQ }: { onCreateRFQ: (items: R
                             {filteredRequests.length === 0 && (
                                 <tr><td colSpan={5} className="p-20 text-center text-slate-400 italic">
                                     <ShoppingCart size={48} className="mx-auto mb-4 opacity-10"/>
-                                    No hay solicitudes pendientes.
+                                    No hay solicitudes pendientes de procesamiento.
                                 </td></tr>
                             )}
                         </tbody>

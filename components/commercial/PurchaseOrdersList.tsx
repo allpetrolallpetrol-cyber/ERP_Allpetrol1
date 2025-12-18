@@ -1,7 +1,8 @@
 
 import React, { useState, useMemo } from 'react';
 import { RFQ, OrderStatus, CompanySettings } from '../../types';
-import { Eye, Printer, X, Building2, Calendar, FileText, Download, Search } from 'lucide-react';
+// Add ShoppingBag to the imported lucide-react icons
+import { Eye, Printer, X, Building2, Calendar, FileText, Download, Search, Package, ShoppingBag } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import { useMasterData } from '../../contexts/MasterDataContext';
 
@@ -221,7 +222,7 @@ const PurchaseOrderDetailModal = ({ po, onClose }: { po: RFQ, onClose: () => voi
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in">
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95">
                 {/* Header Modal */}
                 <div className="bg-slate-50 border-b border-slate-200 p-6 flex justify-between items-start">
                     <div className="flex items-start gap-4">
@@ -341,9 +342,9 @@ export const PurchaseOrdersList = ({ rfqs }: { rfqs: RFQ[] }) => {
     }, [rfqs, searchTerm]);
 
     return (
-        <div className="space-y-4">
+        <div className="space-y-4 h-full flex flex-col overflow-hidden">
             {/* Search Bar */}
-            <div className="relative">
+            <div className="relative shrink-0">
                 <input 
                     type="text" 
                     placeholder="Buscar por Número de Orden o Proveedor..." 
@@ -354,49 +355,64 @@ export const PurchaseOrdersList = ({ rfqs }: { rfqs: RFQ[] }) => {
                 <Search size={20} className="absolute left-3 top-3.5 text-slate-400" />
             </div>
 
-            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
-                 <table className="w-full text-sm text-left">
-                    <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold">
-                        <tr>
-                            <th className="p-4">Nro OC</th>
-                            <th className="p-4">Ref. RFQ</th>
-                            <th className="p-4">Fecha</th>
-                            <th className="p-4">Proveedor</th>
-                            <th className="p-4 text-right">Total</th>
-                            <th className="p-4 text-center">Estado</th>
-                            <th className="p-4 text-center">Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                        {filteredPOs.map(po => {
-                            const winner = po.quotes.find(q => q.isSelected);
-                            return (
-                                <tr key={po.id} className="hover:bg-slate-50 transition-colors group cursor-pointer" onClick={() => setSelectedPO(po)}>
-                                    <td className="p-4 font-bold text-slate-800">{po.number}</td>
-                                    <td className="p-4 text-slate-500 font-mono">{po.relatedRfqNumber || '-'}</td>
-                                    <td className="p-4 text-slate-500">{po.date}</td>
-                                    <td className="p-4 font-medium text-slate-700">{winner?.supplierName}</td>
-                                    <td className="p-4 text-right font-bold text-slate-900">${winner?.price.toLocaleString()}</td>
-                                    <td className="p-4 text-center">
-                                        <span className="bg-green-100 text-green-700 border border-green-200 text-xs px-2 py-0.5 rounded-full font-bold">Emitida</span>
-                                    </td>
-                                    <td className="p-4 text-center">
-                                        <button 
-                                            onClick={(e) => { e.stopPropagation(); setSelectedPO(po); }}
-                                            className="text-slate-400 hover:text-accent p-1 transition-colors"
-                                            title="Ver Detalle"
-                                        >
-                                            <Eye size={18} />
-                                        </button>
-                                    </td>
-                                </tr>
-                            )
-                        })}
-                        {filteredPOs.length === 0 && (
-                            <tr><td colSpan={7} className="p-8 text-center text-slate-400 italic">No se encontraron órdenes de compra.</td></tr>
-                        )}
-                    </tbody>
-                 </table>
+            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm flex flex-col flex-1">
+                 <div className="overflow-y-auto no-scrollbar flex-1">
+                    <table className="w-full text-sm text-left">
+                        <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold sticky top-0 z-10">
+                            <tr>
+                                <th className="p-4">Nro OC</th>
+                                <th className="p-4">Proveedor / Fecha</th>
+                                <th className="p-4">Ítems Incluidos</th>
+                                <th className="p-4 text-right">Monto Total</th>
+                                <th className="p-4 text-center">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                            {filteredPOs.map(po => {
+                                const winner = po.quotes.find(q => q.isSelected);
+                                const itemsSummary = po.items.map(i => i.description).join(', ');
+
+                                return (
+                                    <tr key={po.id} className="hover:bg-slate-50 transition-colors group cursor-pointer" onClick={() => setSelectedPO(po)}>
+                                        <td className="p-4">
+                                            <div className="font-bold text-slate-800">{po.number}</div>
+                                            <div className="text-[10px] text-slate-400 font-mono uppercase">REF RFQ: {po.relatedRfqNumber || '-'}</div>
+                                        </td>
+                                        <td className="p-4">
+                                            <div className="font-medium text-slate-700">{winner?.supplierName}</div>
+                                            <div className="text-xs text-slate-500">{po.date}</div>
+                                        </td>
+                                        <td className="p-4">
+                                            <div className="flex items-center gap-1 text-xs text-slate-500 max-w-xs">
+                                                <Package size={12} className="shrink-0 text-slate-400" />
+                                                <span className="truncate" title={itemsSummary}>{itemsSummary}</span>
+                                            </div>
+                                        </td>
+                                        <td className="p-4 text-right">
+                                            <div className="font-bold text-slate-900">${winner?.price.toLocaleString()}</div>
+                                            <span className="bg-green-100 text-green-700 text-[10px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Emitida</span>
+                                        </td>
+                                        <td className="p-4 text-center">
+                                            <button 
+                                                onClick={(e) => { e.stopPropagation(); setSelectedPO(po); }}
+                                                className="text-slate-400 hover:text-accent p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                                                title="Ver Detalle"
+                                            >
+                                                <Eye size={18} />
+                                            </button>
+                                        </td>
+                                    </tr>
+                                )
+                            })}
+                        </tbody>
+                    </table>
+                    {filteredPOs.length === 0 && (
+                        <div className="p-20 text-center text-slate-400 italic">
+                            <ShoppingBag size={48} className="mx-auto mb-4 opacity-10" />
+                            No se encontraron órdenes de compra emitidas.
+                        </div>
+                    )}
+                 </div>
             </div>
 
             {selectedPO && (

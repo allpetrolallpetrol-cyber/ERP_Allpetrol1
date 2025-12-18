@@ -28,7 +28,7 @@ export const ProcurementModule = ({ initialTab }: { initialTab?: string }) => {
     const { userProfile } = useAuth();
     
     // Set active tab based on prop or default
-    const [activeTab, setActiveTab] = useState<'REQUESTS' | 'MANAGE_RFQ' | 'APPROVAL' | 'PO_LIST' | 'SETTINGS'>('MANAGE_RFQ');
+    const [activeTab, setActiveTab] = useState<'REQUESTS' | 'MANAGE_RFQ' | 'APPROVAL' | 'PO_LIST' | 'SETTINGS'>('REQUESTS');
     
     // Calcular Permisos Granulares
     const permissions = useMemo(() => {
@@ -184,28 +184,18 @@ export const ProcurementModule = ({ initialTab }: { initialTab?: string }) => {
     }
 
     return (
-        <div className="space-y-6 animate-in fade-in">
-             <div className="flex justify-between items-center">
+        <div className="space-y-6 animate-in fade-in h-full flex flex-col overflow-hidden">
+             <div className="flex justify-between items-center shrink-0 px-6">
                 <div>
                     <h2 className="text-2xl font-bold text-slate-800">
                         {permissions.canView ? 'Gestión de Compras' : 'Solicitudes de Pedido'}
                     </h2>
-                    <p className="text-slate-500 text-sm">Administración de abastecimiento.</p>
+                    <p className="text-slate-500 text-sm">Administración integral del abastecimiento.</p>
                 </div>
-                
-                {/* BUTTON PROTECTED: Only visible if CREATE, EDIT or ADMIN */}
-                {permissions.canCreate && (
-                    <button 
-                        onClick={() => setShowNewForm(true)} 
-                        className="bg-accent text-white px-4 py-2 rounded-lg font-medium shadow-md hover:bg-blue-600 flex items-center"
-                    >
-                        <Plus size={18} className="mr-2"/> Crear Petición (RFQ)
-                    </button>
-                )}
              </div>
 
-             {/* Dashboard Navigation Cards */}
-             <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+             {/* Dashboard Navigation Cards - Added padding to avoid sticking to sidebar */}
+             <div className="px-6 grid grid-cols-2 md:grid-cols-5 gap-4 shrink-0">
                  {/* REQUESTS CARD - Visible to Requestors and Buyers */}
                  {permissions.canRequests && (
                      <button onClick={() => setActiveTab('REQUESTS')} className={`p-4 rounded-xl border flex flex-col items-center justify-center transition-all ${activeTab === 'REQUESTS' ? 'bg-white border-orange-500 shadow-md ring-1 ring-orange-500' : 'bg-white border-slate-200 hover:bg-slate-50'}`}>
@@ -213,7 +203,7 @@ export const ProcurementModule = ({ initialTab }: { initialTab?: string }) => {
                             <ShoppingCart size={24} className={`mb-2 ${activeTab === 'REQUESTS' ? 'text-orange-500' : 'text-slate-400'}`} />
                             {pendingRequests > 0 && <span className="absolute -top-1 -right-2 bg-red-500 text-white text-[10px] w-4 h-4 flex items-center justify-center rounded-full">{pendingRequests}</span>}
                         </div>
-                        <span className="font-semibold text-slate-700">Solicitudes (SolPed)</span>
+                        <span className="font-semibold text-slate-700 text-sm md:text-base">Solicitudes</span>
                      </button>
                  )}
 
@@ -221,8 +211,8 @@ export const ProcurementModule = ({ initialTab }: { initialTab?: string }) => {
                  {permissions.canView && (
                      <button onClick={() => setActiveTab('MANAGE_RFQ')} className={`p-4 rounded-xl border flex flex-col items-center justify-center transition-all ${activeTab === 'MANAGE_RFQ' ? 'bg-white border-accent shadow-md ring-1 ring-accent' : 'bg-white border-slate-200 hover:bg-slate-50'}`}>
                         <FileText size={24} className={`mb-2 ${activeTab === 'MANAGE_RFQ' ? 'text-accent' : 'text-slate-400'}`} />
-                        <span className="font-semibold text-slate-700">Seguimiento</span>
-                        <span className="text-xs text-slate-500 mt-1">{activeRfqs} activas</span>
+                        <span className="font-semibold text-slate-700 text-sm md:text-base">Seguimiento</span>
+                        <span className="text-[10px] text-slate-500 mt-1 uppercase font-bold">{activeRfqs} activas</span>
                      </button>
                  )}
                  
@@ -233,7 +223,7 @@ export const ProcurementModule = ({ initialTab }: { initialTab?: string }) => {
                             <Users size={24} className={`mb-2 ${activeTab === 'APPROVAL' ? 'text-blue-500' : 'text-slate-400'}`} />
                             {pendingApprovals > 0 && <span className="absolute -top-1 -right-2 bg-red-500 text-white text-[10px] w-4 h-4 flex items-center justify-center rounded-full">{pendingApprovals}</span>}
                         </div>
-                        <span className="font-semibold text-slate-700">Aprobaciones</span>
+                        <span className="font-semibold text-slate-700 text-sm md:text-base">Aprobaciones</span>
                      </button>
                  )}
 
@@ -241,7 +231,7 @@ export const ProcurementModule = ({ initialTab }: { initialTab?: string }) => {
                  {permissions.canView && (
                      <button onClick={() => setActiveTab('PO_LIST')} className={`p-4 rounded-xl border flex flex-col items-center justify-center transition-all ${activeTab === 'PO_LIST' ? 'bg-white border-green-500 shadow-md ring-1 ring-green-500' : 'bg-white border-slate-200 hover:bg-slate-50'}`}>
                         <ShoppingBag size={24} className={`mb-2 ${activeTab === 'PO_LIST' ? 'text-green-500' : 'text-slate-400'}`} />
-                        <span className="font-semibold text-slate-700">Órdenes de Compra</span>
+                        <span className="font-semibold text-slate-700 text-sm md:text-base">Ordenes de Compra</span>
                      </button>
                  )}
 
@@ -249,12 +239,12 @@ export const ProcurementModule = ({ initialTab }: { initialTab?: string }) => {
                  {permissions.canConfig && (
                      <button onClick={() => setActiveTab('SETTINGS')} className={`p-4 rounded-xl border flex flex-col items-center justify-center transition-all ${activeTab === 'SETTINGS' ? 'bg-white border-slate-800 shadow-md ring-1 ring-slate-800' : 'bg-white border-slate-200 hover:bg-slate-50'}`}>
                         <Settings size={24} className={`mb-2 ${activeTab === 'SETTINGS' ? 'text-slate-800' : 'text-slate-400'}`} />
-                        <span className="font-semibold text-slate-700">Configuración</span>
+                        <span className="font-semibold text-slate-700 text-sm md:text-base">Configuración</span>
                      </button>
                  )}
              </div>
 
-             <div className="min-h-[400px]">
+             <div className="flex-1 overflow-y-auto no-scrollbar pb-10 px-6">
                 {activeTab === 'REQUESTS' && permissions.canRequests && <PurchaseRequestManager onCreateRFQ={handleCreateFromRequests} />}
                 {activeTab === 'MANAGE_RFQ' && permissions.canView && <RFQManagement rfqs={rfqs} onUpdate={handleUpdateRFQ} onEditDraft={handleEditDraft} onSplitAdjudicate={handleSplitAdjudicate} />}
                 {activeTab === 'APPROVAL' && permissions.canView && <ApprovalTray rfqs={rfqs} onApprove={handleApprove} onRevert={handleRevert} />}

@@ -233,18 +233,18 @@ export const NewRFQForm = ({ initialData, onSave, onCancel }: { initialData?: RF
     const handleDraft = () => validateAndSave(OrderStatus.DRAFT);
 
     return (
-        <div className="bg-white p-6 rounded-xl shadow-lg border border-slate-200 animate-in fade-in slide-in-from-bottom-4">
-            <div className="flex justify-between items-center mb-6 border-b pb-4">
+        <div className="bg-white p-6 rounded-xl shadow-lg border border-slate-200 animate-in fade-in slide-in-from-bottom-4 h-full flex flex-col overflow-hidden">
+            <div className="flex justify-between items-center mb-6 border-b pb-4 shrink-0">
                 <h3 className="text-xl font-bold text-slate-800 flex items-center">
                     <FileText className="mr-2 text-slate-600" /> {(initialData as RFQ)?.id ? 'Editar Borrador' : 'Nueva RFQ'}
                 </h3>
                 <button onClick={onCancel} className="text-slate-400 hover:text-slate-600"><X size={24}/></button>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-3 gap-8 pb-4">
                 {/* Left Column: Add Items */}
-                <div className="lg:col-span-2 space-y-6">
-                    <div className="bg-slate-50 p-5 rounded-xl border border-slate-200 shadow-inner">
+                <div className="lg:col-span-2 flex flex-col space-y-6 overflow-hidden">
+                    <div className="bg-slate-50 p-5 rounded-xl border border-slate-200 shadow-inner shrink-0">
                         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-3">
                             <h4 className="text-sm font-bold text-slate-700 uppercase flex items-center"><Package className="mr-2" size={16}/> 1. Agregar / Editar Ítem</h4>
                             
@@ -401,79 +401,82 @@ export const NewRFQForm = ({ initialData, onSave, onCancel }: { initialData?: RF
                         )}
                     </div>
 
-                    {/* Items Table */}
-                    <div>
-                        <h4 className="text-sm font-bold text-slate-700 uppercase mb-2">Items Agregados ({items.length})</h4>
+                    {/* Items Table - Added Scroll and no-scrollbar */}
+                    <div className="flex-1 flex flex-col overflow-hidden">
+                        <h4 className="text-sm font-bold text-slate-700 uppercase mb-2 shrink-0">Items Agregados ({items.length})</h4>
                         {items.length > 0 ? (
-                            <div className="border border-slate-200 rounded-lg overflow-x-auto shadow-sm">
-                                <table className="w-full text-sm bg-white">
-                                    <thead className="bg-slate-100 text-slate-600 font-semibold border-b border-slate-200">
-                                        <tr>
-                                            <th className="text-left px-4 py-2 min-w-[200px]">Descripción</th>
-                                            <th className="text-center px-4 py-2">Cant.</th>
-                                            <th className="text-left px-4 py-2 min-w-[200px]">Proveedores Asignados</th>
-                                            <th className="px-4 py-2 w-20 text-right">Acciones</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {items.map((it, idx) => {
-                                            const hasSuppliers = it.targetSupplierIds && it.targetSupplierIds.length > 0;
-                                            return (
-                                                <tr key={idx} className={`border-b last:border-0 hover:bg-slate-50 transition-colors ${!hasSuppliers ? 'bg-red-50 hover:bg-red-100' : ''}`}>
-                                                    <td className="px-4 py-3 font-medium text-slate-700">
-                                                        {it.description}
-                                                        {it.materialId ? 
-                                                            <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-50 text-green-700 border border-green-200">COD</span>
-                                                            : 
-                                                            <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-500 border border-slate-200">LIBRE</span>
-                                                        }
-                                                        {!hasSuppliers && (
-                                                            <div className="text-[10px] text-red-600 font-bold flex items-center mt-1">
-                                                                <AlertCircle size={10} className="mr-1"/> Faltan Proveedores
-                                                            </div>
-                                                        )}
-                                                    </td>
-                                                    <td className="text-center px-4 py-3 font-mono bg-slate-50">{it.quantity}</td>
-                                                    <td className="px-4 py-3">
-                                                        <div className="flex flex-wrap gap-1">
-                                                            {hasSuppliers ? it.targetSupplierIds?.map(sid => {
-                                                                const sup = suppliers.find(s => s.id === sid);
-                                                                const sName = (sup as any)?.name || sup?.businessName || 'Desc.';
-                                                                return (
-                                                                    <span key={sid} className="group relative text-[10px] bg-blue-50 border border-blue-100 px-2 py-1 rounded text-blue-700 flex items-center hover:bg-blue-100 cursor-default transition-colors">
-                                                                        {sName}
-                                                                        <button 
-                                                                            onClick={() => removeSupplierFromItem(idx, sid)}
-                                                                            className="ml-1 text-blue-400 hover:text-red-500 hidden group-hover:inline-block"
-                                                                            title="Quitar este proveedor"
-                                                                        >
-                                                                            <X size={10} />
-                                                                        </button>
-                                                                    </span>
-                                                                )
-                                                            }) : (
-                                                                <span className="text-xs text-red-500 italic">Asigne proveedores editando el item.</span>
+                            <div className="border border-slate-200 rounded-lg shadow-sm flex flex-col flex-1 overflow-hidden">
+                                <div className="overflow-y-auto no-scrollbar flex-1">
+                                    <table className="w-full text-sm bg-white">
+                                        <thead className="bg-slate-100 text-slate-600 font-semibold border-b border-slate-200 sticky top-0 z-10">
+                                            <tr>
+                                                <th className="text-left px-4 py-2 min-w-[200px]">Descripción</th>
+                                                <th className="text-center px-4 py-2">Cant.</th>
+                                                <th className="text-left px-4 py-2 min-w-[200px]">Proveedores Asignados</th>
+                                                <th className="px-4 py-2 w-20 text-right">Acciones</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {items.map((it, idx) => {
+                                                const hasSuppliers = it.targetSupplierIds && it.targetSupplierIds.length > 0;
+                                                return (
+                                                    <tr key={idx} className={`border-b last:border-0 hover:bg-slate-50 transition-colors ${!hasSuppliers ? 'bg-red-50 hover:bg-red-100' : ''}`}>
+                                                        <td className="px-4 py-3 font-medium text-slate-700">
+                                                            {it.description}
+                                                            {it.materialId ? 
+                                                                <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-50 text-green-700 border border-green-200">COD</span>
+                                                                : 
+                                                                <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-500 border border-slate-200">LIBRE</span>
+                                                            }
+                                                            {!hasSuppliers && (
+                                                                <div className="text-[10px] text-red-600 font-bold flex items-center mt-1">
+                                                                    <AlertCircle size={10} className="mr-1"/> Faltan Proveedores
+                                                                </div>
                                                             )}
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-4 py-3 text-right">
-                                                        <div className="flex items-center justify-end space-x-1">
-                                                            <button onClick={() => editItem(idx)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors" title="Editar Item">
-                                                                <Edit2 size={16}/>
-                                                            </button>
-                                                            <button onClick={() => removeItem(idx)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors" title="Eliminar Item">
-                                                                <Trash2 size={16}/>
-                                                            </button>
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            )
-                                        })}
-                                    </tbody>
-                                </table>
+                                                        </td>
+                                                        <td className="text-center px-4 py-3 font-mono bg-slate-50">{it.quantity}</td>
+                                                        <td className="px-4 py-3">
+                                                            <div className="flex flex-wrap gap-1">
+                                                                {hasSuppliers ? it.targetSupplierIds?.map(sid => {
+                                                                    const sup = suppliers.find(s => s.id === sid);
+                                                                    const sName = (sup as any)?.name || sup?.businessName || 'Desc.';
+                                                                    return (
+                                                                        <span key={sid} className="group relative text-[10px] bg-blue-50 border border-blue-100 px-2 py-1 rounded text-blue-700 flex items-center hover:bg-blue-100 cursor-default transition-colors">
+                                                                            {sName}
+                                                                            <button 
+                                                                                onClick={() => removeSupplierFromItem(idx, sid)}
+                                                                                className="ml-1 text-blue-400 hover:text-red-500 hidden group-hover:inline-block"
+                                                                                title="Quitar este proveedor"
+                                                                            >
+                                                                                <X size={10} />
+                                                                            </button>
+                                                                        </span>
+                                                                    )
+                                                                }) : (
+                                                                    <span className="text-xs text-red-500 italic">Asigne proveedores editando el item.</span>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-4 py-3 text-right">
+                                                            <div className="flex items-center justify-end space-x-1">
+                                                                <button onClick={() => editItem(idx)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors" title="Editar Item">
+                                                                    <Edit2 size={16}/>
+                                                                </button>
+                                                                {/* Fix: changed 'index' to 'idx' which is the correct variable name in the map function */}
+                                                                <button onClick={() => removeItem(idx)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors" title="Eliminar Item">
+                                                                    <Trash2 size={16}/>
+                                                                </button>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                )
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
                         ) : (
-                            <div className="p-8 text-center bg-slate-50 rounded-lg border border-dashed border-slate-300">
+                            <div className="p-8 text-center bg-slate-50 rounded-lg border border-dashed border-slate-300 flex-1 flex flex-col justify-center">
                                 <p className="text-slate-400 text-sm">No hay items agregados aún.</p>
                             </div>
                         )}
@@ -481,8 +484,8 @@ export const NewRFQForm = ({ initialData, onSave, onCancel }: { initialData?: RF
                 </div>
 
                 {/* Right Column: Summary */}
-                <div className="lg:col-span-1">
-                    <div className="bg-white p-5 rounded-xl border border-slate-200 sticky top-6 shadow-lg">
+                <div className="lg:col-span-1 overflow-y-auto no-scrollbar">
+                    <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-lg">
                         <h4 className="text-sm font-bold text-slate-800 uppercase mb-4 flex items-center"><Briefcase className="mr-2" size={16}/> Resumen de Proveedores</h4>
                         
                         <div className="mb-6">
