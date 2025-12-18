@@ -42,14 +42,12 @@ export const DataImporter = () => {
         let filename = '';
 
         if (importType === 'MATERIAL') {
-            headers = 'descripcion;unidad;stock;minimo;costo;ubicacion'; 
+            headers = 'descripcion;descripcion_ampliada;unidad;stock;minimo;costo;ubicacion'; 
             filename = 'template_materiales.csv';
         } else if (importType === 'CLIENT') {
-            // Updated Headers
             headers = 'razon_social;cuit;direccion;emails_separados_coma;nombre_contacto;telefono_contacto';
             filename = 'template_clientes.csv';
         } else {
-            // Updated Headers
             headers = 'razon_social;cuit;direccion;condicion_pago;emails_separados_coma;nombre_contacto;telefono_contacto';
             filename = 'template_proveedores.csv';
         }
@@ -90,11 +88,15 @@ export const DataImporter = () => {
             for (const row of fileData) {
                 if (importType === 'MATERIAL') {
                     if (!row.descripcion) continue;
-                    const newId = await getNextId('MATERIAL');
+                    // Logic for numbering category needs to be careful here if not specified in CSV
+                    // Default to SUPPLY for import if not specified
+                    const newId = await getNextId('MATERIAL_SUPPLY');
                     await addMaterial({
                         id: newId,
                         code: row.codigo || newId,
                         description: row.descripcion,
+                        extendedDescription: row.descripcion_ampliada || '',
+                        category: (row.categoria as any) || 'SUPPLY',
                         unitOfMeasure: row.unidad || 'UN',
                         stock: parseFloat(row.stock || '0'),
                         minStock: parseFloat(row.minimo || '0'),
@@ -107,17 +109,15 @@ export const DataImporter = () => {
                     if (!row.razon_social) continue;
                     const newId = await getNextId('CLIENT');
                     
-                    // Parse Multiple Emails
                     const emailString = row.emails_separados_coma || row.email || '';
                     const emails = emailString.split(',').map((e:string) => e.trim()).filter((e:string) => e.length > 0);
                     
-                    // Parse Contact
                     const contacts = [];
                     if (row.nombre_contacto || row.telefono_contacto) {
                         contacts.push({
                             name: row.nombre_contacto || 'Contacto Principal',
                             phone: row.telefono_contacto || '',
-                            email: emails[0] || '', // Default first email to first contact
+                            email: emails[0] || '',
                             role: 'Importado'
                         });
                     }
@@ -130,7 +130,6 @@ export const DataImporter = () => {
                         conditionIVA: 'Responsable Inscripto',
                         emails: emails,
                         contacts: contacts,
-                        // Legacy support
                         contactName: row.nombre_contacto || '',
                         email: emails[0] || ''
                     });
@@ -138,11 +137,9 @@ export const DataImporter = () => {
                     if (!row.razon_social) continue;
                     const newId = await getNextId('SUPPLIER');
                     
-                    // Parse Multiple Emails
                     const emailString = row.emails_separados_coma || row.email || '';
                     const emails = emailString.split(',').map((e:string) => e.trim()).filter((e:string) => e.length > 0);
                     
-                    // Parse Contact
                     const contacts = [];
                     if (row.nombre_contacto || row.telefono_contacto) {
                         contacts.push({
@@ -162,7 +159,6 @@ export const DataImporter = () => {
                         conditionIVA: 'Responsable Inscripto',
                         emails: emails,
                         contacts: contacts,
-                        // Legacy support
                         contactName: row.nombre_contacto || '',
                         email: emails[0] || ''
                     });

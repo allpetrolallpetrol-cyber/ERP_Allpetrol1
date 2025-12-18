@@ -1,30 +1,189 @@
 
 import React, { useState, useMemo } from 'react';
 import { useMasterData } from '../../contexts/MasterDataContext';
-import { PurchaseRequest, RequestStatus, RFQItem } from '../../types';
-import { Plus, Search, ShoppingCart, Filter, User, Calendar, FileText, CheckSquare, Square, ArrowRight, X } from 'lucide-react';
+import { PurchaseRequest, RequestStatus, RFQItem, RFQ, OrderStatus } from '../../types';
+import { Plus, Search, ShoppingCart, Calendar, User, CheckSquare, Square, ArrowRight, X, FileText, BadgeCheck, Zap, Trash2, Package } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { useUI } from '../../contexts/UIContext';
+
+// --- MODULAR COMPONENTS ---
+
+const RequestItemBadge = ({ materialId }: { materialId?: string }) => {
+    const { materials, getContractForMaterial } = useMasterData();
+    if (!materialId) return null;
+    const mat = materials.find(m => m.id === materialId);
+    const contract = getContractForMaterial(materialId);
+    
+    return (
+        <div className="flex gap-1 mt-1">
+            {mat?.category === 'RAW_MATERIAL' && (
+                <span className="text-[9px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full font-bold border border-purple-200">MATERIA PRIMA</span>
+            )}
+            {contract && (
+                <span className="text-[9px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-bold border border-amber-200 flex items-center">
+                    <BadgeCheck size={10} className="mr-1"/> CONTRATO VIGENTE
+                </span>
+            )}
+        </div>
+    );
+};
+
+// --- NEW REQUEST MODAL FORM ---
+const NewRequestModal = ({ onClose, onSave }: { onClose: () => void, onSave: (pr: PurchaseRequest) => void }) => {
+    const { materials, getNextId } = useMasterData();
+    const { userProfile } = useAuth();
+    const { showToast } = useUI();
+    
+    const [items, setItems] = useState<{materialId?: string, description: string, quantity: number, unit: string}[]>([]);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [showResults, setShowResults] = useState(false);
+
+    const filteredMaterials = useMemo(() => {
+        if (!searchTerm) return [];
+        const term = searchTerm.toLowerCase();
+        return materials.filter(m => m.description.toLowerCase().includes(term) || m.code.toLowerCase().includes(term)).slice(0, 10);
+    }, [materials, searchTerm]);
+
+    const handleSelectItem = (m: any) => {
+        setItems([...items, { materialId: m.id, description: m.description, quantity: 1, unit: m.unitOfMeasure }]);
+        setSearchTerm('');
+        setShowResults(false);
+    };
+
+    const addFreeTextItem = () => {
+        if (!searchTerm.trim()) return;
+        setItems([...items, { description: searchTerm, quantity: 1, unit: 'UN' }]);
+        setSearchTerm('');
+        setShowResults(false);
+    };
+
+    const removeItem = (idx: number) => {
+        setItems(items.filter((_, i) => i !== idx));
+    };
+
+    const handleSubmit = async () => {
+        if (items.length === 0) return showToast("Agregue al menos un item", "error");
+        
+        const number = await getNextId('PURCHASE_REQUEST');
+        const pr: PurchaseRequest = {
+            id: `PR-${Date.now()}`,
+            number,
+            date: new Date().toISOString().split('T')[0],
+            requesterId: userProfile?.id || 'ANON',
+            requesterName: userProfile ? `${userProfile.lastName}, ${userProfile.firstName}` : 'Usuario Externo',
+            origin: 'MANUAL',
+            status: RequestStatus.PENDING,
+            items
+        };
+        
+        onSave(pr);
+    };
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 flex flex-col max-h-[90vh]">
+                <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                    <h3 className="text-xl font-bold text-slate-800 flex items-center">
+                        <Plus className="mr-2 text-orange-600" size={24}/> Nueva SolPed
+                    </h3>
+                    <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full transition-colors"><X/></button>
+                </div>
+
+                <div className="p-6 overflow-y-auto custom-scrollbar space-y-6">
+                    <div className="relative">
+                        <label className="block text-sm font-bold text-slate-700 mb-2">Buscar Material o Describir Necesidad</label>
+                        <div className="flex gap-2">
+                            <div className="relative flex-1">
+                                <Search className="absolute left-3 top-2.5 text-slate-400" size={18}/>
+                                <input 
+                                    className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-orange-500 bg-white shadow-sm"
+                                    placeholder="Ej: Rodamiento, Chapa, etc..."
+                                    value={searchTerm}
+                                    onChange={e => { setSearchTerm(e.target.value); setShowResults(true); }}
+                                    onKeyDown={e => e.key === 'Enter' && addFreeTextItem()}
+                                />
+                                {showResults && searchTerm && (
+                                    <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-2xl max-h-48 overflow-y-auto">
+                                        {filteredMaterials.map(m => (
+                                            <button key={m.id} onClick={() => handleSelectItem(m)} className="w-full px-4 py-2 text-left hover:bg-orange-50 border-b last:border-0 text-sm flex justify-between">
+                                                <span className="font-bold">{m.description}</span>
+                                                <span className="text-slate-400 text-xs font-mono">{m.code}</span>
+                                            </button>
+                                        ))}
+                                        <button onClick={addFreeTextItem} className="w-full px-4 py-2 text-left bg-slate-50 hover:bg-slate-100 text-xs font-bold text-orange-600">
+                                            + Usar como texto libre: "{searchTerm}"
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="border border-slate-100 rounded-2xl overflow-hidden shadow-sm">
+                        <table className="w-full text-sm text-left">
+                            <thead className="bg-slate-50 text-slate-500 font-bold border-b border-slate-100">
+                                <tr>
+                                    <th className="p-3">Item / Descripción</th>
+                                    <th className="p-3 w-24">Cantidad</th>
+                                    <th className="p-3 w-20 text-right"></th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-50">
+                                {items.map((it, idx) => (
+                                    <tr key={idx} className="bg-white">
+                                        <td className="p-3 font-medium text-slate-800">
+                                            {it.description}
+                                            {it.materialId && <div className="text-[10px] text-slate-400 font-mono">{it.materialId}</div>}
+                                        </td>
+                                        <td className="p-3">
+                                            <input 
+                                                type="number" 
+                                                className="w-full border rounded px-2 py-1 outline-none focus:ring-1 focus:ring-orange-500" 
+                                                value={it.quantity} 
+                                                onChange={e => {
+                                                    const newItems = [...items];
+                                                    newItems[idx].quantity = parseFloat(e.target.value) || 0;
+                                                    setItems(newItems);
+                                                }}
+                                            />
+                                        </td>
+                                        <td className="p-3 text-right">
+                                            <button onClick={() => removeItem(idx)} className="text-red-400 hover:text-red-600"><Trash2 size={16}/></button>
+                                        </td>
+                                    </tr>
+                                ))}
+                                {items.length === 0 && (
+                                    <tr><td colSpan={3} className="p-10 text-center text-slate-300 italic">No hay items agregados</td></tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div className="p-6 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
+                    <button onClick={onClose} className="px-6 py-2 text-slate-500 font-bold hover:bg-slate-200 rounded-xl transition-all">Cancelar</button>
+                    <button onClick={handleSubmit} className="px-8 py-2 bg-orange-600 text-white font-bold rounded-xl shadow-lg hover:bg-orange-700 transition-all transform active:scale-95">Guardar Solicitud</button>
+                </div>
+            </div>
+        </div>
+    );
+};
 
 export const PurchaseRequestManager = ({ onCreateRFQ }: { onCreateRFQ: (items: RFQItem[]) => void }) => {
-    const { purchaseRequests, materials, uoms, getNextId, addPurchaseRequest, updatePurchaseRequest } = useMasterData();
+    const { purchaseRequests, materials, getNextId, addPurchaseRequest, updatePurchaseRequest, getContractForMaterial, addRFQ } = useMasterData();
     const { userProfile } = useAuth();
+    const { showToast, showConfirm } = useUI();
     
-    // View State
-    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedRequestIds, setSelectedRequestIds] = useState<string[]>([]);
 
-    // Form State (New Request)
-    const [newItemMode, setNewItemMode] = useState<'CODIFIED' | 'FREE_TEXT'>('CODIFIED');
-    const [formMaterialId, setFormMaterialId] = useState('');
-    const [formDescription, setFormDescription] = useState('');
-    const [formQuantity, setFormQuantity] = useState(1);
-    const [formUnit, setFormUnit] = useState('UN');
-    
-    // Form Items List (Before saving request)
-    const [formItems, setFormItems] = useState<{materialId?: string, description: string, quantity: number, unit?: string}[]>([]);
+    const toggleRequestSelection = (id: string) => {
+        setSelectedRequestIds(prev => 
+            prev.includes(id) ? prev.filter(rid => rid !== id) : [...prev, id]
+        );
+    };
 
-    // Filter Logic
     const pendingRequests = useMemo(() => {
         return purchaseRequests.filter(pr => pr.status === RequestStatus.PENDING)
             .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -40,277 +199,193 @@ export const PurchaseRequestManager = ({ onCreateRFQ }: { onCreateRFQ: (items: R
         );
     }, [pendingRequests, searchTerm]);
 
-    // Handlers
-    const handleAddItemToForm = () => {
-        if (newItemMode === 'CODIFIED' && !formMaterialId) return;
-        if (newItemMode === 'FREE_TEXT' && !formDescription) return;
+    const handleSaveNewRequest = async (pr: PurchaseRequest) => {
+        await addPurchaseRequest(pr);
+        showToast("Solicitud generada correctamente", "success");
+        setIsCreateModalOpen(false);
+    };
 
-        let desc = formDescription;
-        let unit = formUnit;
+    const handleGenerateDirectPO = async (requestId: string) => {
+        const req = pendingRequests.find(r => r.id === requestId);
+        if (!req) return;
 
-        if (newItemMode === 'CODIFIED') {
-            const mat = materials.find(m => m.id === formMaterialId);
-            if (mat) {
-                desc = `${mat.code} - ${mat.description}`;
-                unit = mat.unitOfMeasure;
-            }
+        const contractInfo = req.items.map(it => it.materialId ? getContractForMaterial(it.materialId) : null);
+        const allHaveContract = contractInfo.every(c => !!c);
+
+        if (!allHaveContract) {
+            showToast("No todos los items tienen un contrato vigente.", 'error');
+            return;
         }
 
-        setFormItems([...formItems, {
-            materialId: newItemMode === 'CODIFIED' ? formMaterialId : undefined,
-            description: desc,
-            quantity: formQuantity,
-            unit
-        }]);
+        const confirmed = await showConfirm(
+            "Generar OC Directa", 
+            `Esta acción generará una Orden de Compra directa usando los precios del Contrato Marco. Requiere aprobación posterior.`,
+            'info', 'Generar OC'
+        );
 
-        // Reset inputs
-        setFormMaterialId('');
-        setFormDescription('');
-        setFormQuantity(1);
-    };
+        if (confirmed) {
+            try {
+                const supplierId = contractInfo[0]!.supplierId;
+                const poNumber = await getNextId('PURCHASE_ORDER');
+                
+                const poItems: RFQItem[] = req.items.map(it => ({
+                    materialId: it.materialId,
+                    description: it.description,
+                    quantity: it.quantity,
+                    purchaseRequestId: req.id
+                }));
 
-    const handleSaveRequest = async () => {
-        if (formItems.length === 0) return;
-        
-        const number = await getNextId('PURCHASE_REQUEST');
-        const newReq: PurchaseRequest = {
-            id: `PR-${Date.now()}`,
-            number,
-            date: new Date().toISOString().split('T')[0],
-            requesterId: userProfile?.id || 'unknown',
-            requesterName: userProfile ? `${userProfile.lastName}, ${userProfile.firstName}` : 'Usuario Sistema',
-            origin: 'MANUAL',
-            status: RequestStatus.PENDING,
-            items: formItems
-        };
+                const winnerQuote = {
+                    supplierId: supplierId,
+                    supplierName: contractInfo[0]!.supplierName,
+                    price: req.items.reduce((acc, it, idx) => acc + (it.quantity * contractInfo[idx]!.price), 0),
+                    items: req.items.map((it, idx) => ({
+                        materialId: it.materialId || '',
+                        description: it.description,
+                        unitPrice: contractInfo[idx]!.price
+                    })),
+                    isSelected: true
+                };
 
-        await addPurchaseRequest(newReq);
-        setIsModalOpen(false);
-        setFormItems([]);
-    };
+                const newPO: RFQ = {
+                    id: `PO-CTR-${Date.now()}`,
+                    number: poNumber,
+                    date: new Date().toISOString().split('T')[0],
+                    items: poItems,
+                    selectedSuppliers: [{ id: supplierId, name: winnerQuote.supplierName }],
+                    quotes: [winnerQuote],
+                    status: OrderStatus.PENDING_APPROVAL,
+                    winnerSupplierId: supplierId,
+                    origin: 'CONTRACT'
+                };
 
-    const toggleRequestSelection = (id: string) => {
-        if (selectedRequestIds.includes(id)) {
-            setSelectedRequestIds(selectedRequestIds.filter(rid => rid !== id));
-        } else {
-            setSelectedRequestIds([...selectedRequestIds, id]);
+                await addRFQ(newPO);
+                await updatePurchaseRequest({ ...req, status: RequestStatus.PROCESSED });
+                showToast(`OC ${poNumber} generada exitosamente.`, 'success');
+            } catch (e) {
+                showToast("Error al generar OC directa", 'error');
+            }
         }
     };
 
     const handleProcessToRFQ = async () => {
         if (selectedRequestIds.length === 0) return;
-
         const selectedRequests = pendingRequests.filter(pr => selectedRequestIds.includes(pr.id));
         const combinedItems: RFQItem[] = [];
 
-        // Logic to combine items
         selectedRequests.forEach(req => {
             req.items.forEach(reqItem => {
-                // Try to find if this item already exists in combined list (by materialId OR description match)
                 const existingIdx = combinedItems.findIndex(ci => {
                     if (reqItem.materialId && ci.materialId === reqItem.materialId) return true;
                     if (!reqItem.materialId && !ci.materialId && ci.description === reqItem.description) return true;
                     return false;
                 });
-
-                if (existingIdx >= 0) {
-                    combinedItems[existingIdx].quantity += reqItem.quantity;
-                } else {
-                    combinedItems.push({
-                        materialId: reqItem.materialId,
-                        description: reqItem.description,
-                        quantity: reqItem.quantity,
-                        purchaseRequestId: req.id // We track origin, though merging makes this 1-to-many potentially. Simple traceability for now.
-                    });
-                }
+                if (existingIdx >= 0) combinedItems[existingIdx].quantity += reqItem.quantity;
+                else combinedItems.push({ materialId: reqItem.materialId, description: reqItem.description, quantity: reqItem.quantity, purchaseRequestId: req.id });
             });
         });
 
-        // Mark requests as PROCESSED
         for (const req of selectedRequests) {
             await updatePurchaseRequest({ ...req, status: RequestStatus.PROCESSED });
         }
-
         onCreateRFQ(combinedItems);
         setSelectedRequestIds([]);
     };
 
     return (
         <div className="space-y-6">
-            <div className="flex justify-between items-center">
+            <div className="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm border border-slate-200 shrink-0">
                 <h3 className="text-lg font-bold text-slate-800 flex items-center">
                     <ShoppingCart className="mr-2 text-orange-600" /> Solicitudes de Pedido (SolPed)
                 </h3>
                 <button 
-                    onClick={() => setIsModalOpen(true)}
-                    className="bg-white border border-slate-300 text-slate-700 px-4 py-2 rounded-lg font-medium hover:bg-slate-50 shadow-sm flex items-center transition-colors"
+                    onClick={() => setIsCreateModalOpen(true)}
+                    className="bg-orange-600 text-white px-5 py-2 rounded-lg font-bold shadow-md hover:bg-orange-700 transition-all flex items-center active:scale-95"
                 >
-                    <Plus size={18} className="mr-2"/> <span className="hidden md:inline">Nueva Solicitud Manual</span><span className="md:hidden">Nueva</span>
+                    <Plus size={20} className="mr-2"/> Nueva Solicitud
                 </button>
             </div>
 
-            {/* List */}
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-[500px]">
                 <div className="p-4 border-b border-slate-100 flex flex-col md:flex-row gap-4 bg-slate-50/50">
                     <div className="relative flex-1">
-                        <input 
-                            className="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-200 outline-none" 
-                            placeholder="Buscar solicitud..." 
-                            value={searchTerm}
-                            onChange={e => setSearchTerm(e.target.value)}
-                        />
+                        <input className="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:ring-2 focus:ring-orange-400" placeholder="Buscar por número, solicitante o item..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
                         <Search size={16} className="absolute left-3 top-2.5 text-slate-400" />
                     </div>
                     {selectedRequestIds.length > 0 && (
-                        <button 
-                            onClick={handleProcessToRFQ}
-                            className="bg-orange-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-md hover:bg-orange-700 transition-colors flex items-center justify-center animate-in slide-in-from-right-4"
-                        >
-                            Generar RFQ ({selectedRequestIds.length}) <ArrowRight size={16} className="ml-2"/>
+                        <button onClick={handleProcessToRFQ} className="bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-md hover:bg-slate-800 flex items-center animate-in slide-in-from-right-2">
+                            Agrupar en RFQ ({selectedRequestIds.length}) <ArrowRight size={16} className="ml-2"/>
                         </button>
                     )}
                 </div>
 
-                <div className="flex-1 overflow-auto">
+                <div className="flex-1 overflow-auto custom-scrollbar">
                     <table className="w-full text-left text-sm">
-                        <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200 sticky top-0">
+                        <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200 sticky top-0 z-10">
                             <tr>
                                 <th className="p-4 w-10"></th>
-                                <th className="p-4">Nro Solicitud</th>
-                                <th className="p-4 hidden md:table-cell">Fecha</th>
-                                <th className="p-4 hidden md:table-cell">Solicitante</th>
+                                <th className="p-4">Solicitud</th>
                                 <th className="p-4">Origen</th>
-                                <th className="p-4">Items</th>
+                                <th className="p-4">Items y Contratos</th>
+                                <th className="p-4 text-right">Acciones</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-100">
-                            {filteredRequests.map(pr => (
-                                <tr key={pr.id} className={`hover:bg-slate-50 transition-colors ${selectedRequestIds.includes(pr.id) ? 'bg-orange-50' : ''}`}>
-                                    <td className="p-4 text-center">
-                                        <button onClick={() => toggleRequestSelection(pr.id)} className="text-slate-400 hover:text-orange-600">
-                                            {selectedRequestIds.includes(pr.id) ? <CheckSquare size={20} className="text-orange-600"/> : <Square size={20}/>}
-                                        </button>
-                                    </td>
-                                    <td className="p-4 font-bold text-slate-800">{pr.number}</td>
-                                    <td className="p-4 text-slate-500 hidden md:table-cell"><span className="flex items-center"><Calendar size={14} className="mr-1"/> {pr.date}</span></td>
-                                    <td className="p-4 text-slate-600 hidden md:table-cell"><span className="flex items-center"><User size={14} className="mr-1"/> {pr.requesterName}</span></td>
-                                    <td className="p-4">
-                                        <span className={`text-[10px] font-bold px-2 py-1 rounded border ${
-                                            pr.origin === 'MAINTENANCE' ? 'bg-blue-50 text-blue-700 border-blue-100' :
-                                            pr.origin === 'WAREHOUSE' ? 'bg-yellow-50 text-yellow-700 border-yellow-100' :
-                                            'bg-slate-100 text-slate-600 border-slate-200'
-                                        }`}>
-                                            {pr.origin === 'MAINTENANCE' ? 'MANTENIMIENTO' : pr.origin === 'WAREHOUSE' ? 'STOCK' : 'MANUAL'}
-                                        </span>
-                                    </td>
-                                    <td className="p-4">
-                                        <div className="flex flex-col gap-1">
-                                            {pr.items.slice(0, 2).map((it, idx) => (
-                                                <span key={idx} className="text-xs bg-white border border-slate-200 px-1.5 py-0.5 rounded truncate max-w-[200px]" title={it.description}>
-                                                    {it.quantity} {it.unit || 'u'} - {it.description}
-                                                </span>
-                                            ))}
-                                            {pr.items.length > 2 && <span className="text-[10px] text-slate-400">+{pr.items.length - 2} más...</span>}
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
+                        <tbody className="divide-y divide-slate-100 bg-white">
+                            {filteredRequests.map(pr => {
+                                const allHaveContract = pr.items.every(it => it.materialId && !!getContractForMaterial(it.materialId));
+                                
+                                return (
+                                    <tr key={pr.id} className={`hover:bg-slate-50 transition-colors ${selectedRequestIds.includes(pr.id) ? 'bg-orange-50' : ''}`}>
+                                        <td className="p-4 text-center">
+                                            <button onClick={() => toggleRequestSelection(pr.id)} className="text-slate-400 hover:text-orange-500 transition-colors">
+                                                {selectedRequestIds.includes(pr.id) ? <CheckSquare size={20} className="text-orange-600"/> : <Square size={20}/>}
+                                            </button>
+                                        </td>
+                                        <td className="p-4">
+                                            <div className="font-bold text-slate-800">{pr.number}</div>
+                                            <div className="text-[10px] text-slate-400">{pr.date} • {pr.requesterName}</div>
+                                        </td>
+                                        <td className="p-4">
+                                            <span className="text-[10px] font-bold px-2 py-0.5 rounded border border-slate-200 bg-slate-100 uppercase text-slate-600">{pr.origin}</span>
+                                        </td>
+                                        <td className="p-4">
+                                            <div className="flex flex-col gap-1.5 max-w-xs">
+                                                {pr.items.map((it, idx) => (
+                                                    <div key={idx} className="bg-slate-50 border border-slate-100 p-2 rounded shadow-sm">
+                                                        <span className="font-medium text-slate-700 text-xs">{it.quantity} {it.unit} - {it.description}</span>
+                                                        <RequestItemBadge materialId={it.materialId} />
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </td>
+                                        <td className="p-4 text-right">
+                                            {allHaveContract && (
+                                                <button 
+                                                    onClick={() => handleGenerateDirectPO(pr.id)}
+                                                    className="bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 px-3 py-1.5 rounded-lg text-[10px] font-bold flex items-center ml-auto transition-colors"
+                                                    title="Generar OC directa por contrato (Sin RFQ)"
+                                                >
+                                                    <Zap size={14} className="mr-1.5"/> Generar OC Directa
+                                                </button>
+                                            )}
+                                            {!allHaveContract && <span className="text-[10px] text-slate-400 italic">Requiere RFQ</span>}
+                                        </td>
+                                    </tr>
+                                )
+                            })}
                             {filteredRequests.length === 0 && (
-                                <tr><td colSpan={6} className="p-8 text-center text-slate-400 italic">No hay solicitudes pendientes.</td></tr>
+                                <tr><td colSpan={5} className="p-20 text-center text-slate-400 italic">
+                                    <ShoppingCart size={48} className="mx-auto mb-4 opacity-10"/>
+                                    No hay solicitudes pendientes.
+                                </td></tr>
                             )}
                         </tbody>
                     </table>
                 </div>
             </div>
 
-            {/* Manual Request Modal */}
-            {isModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[90vh] animate-in zoom-in-95">
-                        <div className="p-6 border-b border-slate-200 flex justify-between items-center bg-slate-50 rounded-t-xl">
-                            <h3 className="text-xl font-bold text-slate-800">Nueva Solicitud de Pedido</h3>
-                            <button onClick={() => setIsModalOpen(false)}><X size={20} className="text-slate-400 hover:text-slate-600"/></button>
-                        </div>
-                        
-                        <div className="p-6 overflow-y-auto flex-1">
-                            {/* Input Area */}
-                            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 mb-6">
-                                <div className="flex gap-4 mb-4 border-b border-slate-200 pb-2">
-                                    <button onClick={() => setNewItemMode('CODIFIED')} className={`text-sm font-bold pb-2 border-b-2 transition-colors ${newItemMode === 'CODIFIED' ? 'border-orange-500 text-orange-600' : 'border-transparent text-slate-500'}`}>Material Codificado</button>
-                                    <button onClick={() => setNewItemMode('FREE_TEXT')} className={`text-sm font-bold pb-2 border-b-2 transition-colors ${newItemMode === 'FREE_TEXT' ? 'border-orange-500 text-orange-600' : 'border-transparent text-slate-500'}`}>Texto Libre</button>
-                                </div>
-
-                                <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
-                                    <div className="md:col-span-8">
-                                        <label className="block text-xs font-semibold text-slate-500 mb-1">
-                                            {newItemMode === 'CODIFIED' ? 'Buscar Material' : 'Descripción del Ítem'}
-                                        </label>
-                                        {newItemMode === 'CODIFIED' ? (
-                                            <select 
-                                                className="w-full px-3 py-2 border rounded-lg text-sm bg-white"
-                                                value={formMaterialId}
-                                                onChange={e => setFormMaterialId(e.target.value)}
-                                            >
-                                                <option value="">Seleccionar...</option>
-                                                {materials.map(m => (
-                                                    <option key={m.id} value={m.id}>{m.code} - {m.description}</option>
-                                                ))}
-                                            </select>
-                                        ) : (
-                                            <input 
-                                                className="w-full px-3 py-2 border rounded-lg text-sm bg-white"
-                                                placeholder="Ej. Laptop Dell Inspiron 15..."
-                                                value={formDescription}
-                                                onChange={e => setFormDescription(e.target.value)}
-                                            />
-                                        )}
-                                    </div>
-                                    <div className="md:col-span-2">
-                                        <label className="block text-xs font-semibold text-slate-500 mb-1">Cant.</label>
-                                        <input 
-                                            type="number" 
-                                            className="w-full px-3 py-2 border rounded-lg text-sm bg-white"
-                                            value={formQuantity}
-                                            onChange={e => setFormQuantity(parseFloat(e.target.value))}
-                                            min="0.1"
-                                        />
-                                    </div>
-                                    <div className="md:col-span-2">
-                                        <button onClick={handleAddItemToForm} className="w-full bg-slate-800 text-white py-2 rounded-lg text-sm font-bold hover:bg-slate-700">Agregar</button>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Items Table */}
-                            <table className="w-full text-sm text-left">
-                                <thead className="bg-slate-100 text-slate-500 font-semibold">
-                                    <tr>
-                                        <th className="p-2">Descripción</th>
-                                        <th className="p-2 text-center">Cant.</th>
-                                        <th className="p-2 text-right"></th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100">
-                                    {formItems.map((item, idx) => (
-                                        <tr key={idx}>
-                                            <td className="p-2">{item.description} {item.materialId && <span className="bg-slate-100 text-slate-500 text-[10px] px-1 rounded ml-2">COD</span>}</td>
-                                            <td className="p-2 text-center">{item.quantity} {item.unit}</td>
-                                            <td className="p-2 text-right">
-                                                <button onClick={() => setFormItems(formItems.filter((_, i) => i !== idx))} className="text-red-400 hover:text-red-600 font-bold">X</button>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                    {formItems.length === 0 && <tr><td colSpan={3} className="p-4 text-center text-slate-400 italic">Agregue items a la solicitud.</td></tr>}
-                                </tbody>
-                            </table>
-                        </div>
-
-                        <div className="p-6 border-t border-slate-100 flex justify-end gap-3 bg-slate-50 rounded-b-xl">
-                            <button onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-slate-500 font-medium hover:bg-slate-200 rounded-lg">Cancelar</button>
-                            <button onClick={handleSaveRequest} disabled={formItems.length === 0} className="px-6 py-2 bg-orange-600 text-white font-bold rounded-lg hover:bg-orange-700 shadow-md disabled:opacity-50">Guardar Solicitud</button>
-                        </div>
-                    </div>
-                </div>
+            {isCreateModalOpen && (
+                <NewRequestModal onClose={() => setIsCreateModalOpen(false)} onSave={handleSaveNewRequest} />
             )}
         </div>
     );

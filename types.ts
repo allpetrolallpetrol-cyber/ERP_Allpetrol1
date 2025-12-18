@@ -60,26 +60,40 @@ export interface User {
   areaId?: string; 
   profile: string;
   avatarUrl?: string;
-  isApprover?: boolean; // Nuevo campo para marcar si puede aprobar compras
+  isApprover?: boolean;
 }
 
 // System Configuration
-export type DocumentType = 'RFQ' | 'PURCHASE_ORDER' | 'MAINTENANCE_ORDER' | 'WORK_REQUEST' | 'STOCK_MOVEMENT' | 'MATERIAL' | 'SUPPLIER' | 'CLIENT' | 'PURCHASE_REQUEST';
+export type DocumentType = 
+    | 'RFQ' 
+    | 'PURCHASE_ORDER' 
+    | 'MAINTENANCE_ORDER' 
+    | 'WORK_REQUEST' 
+    | 'STOCK_MOVEMENT' 
+    | 'MATERIAL' 
+    | 'MATERIAL_RAW' 
+    | 'MATERIAL_SUPPLY' 
+    | 'MATERIAL_PRODUCT' 
+    | 'MATERIAL_SERVICE' 
+    | 'SUPPLIER' 
+    | 'CLIENT' 
+    | 'PURCHASE_REQUEST' 
+    | 'CONTRACT';
 
 export interface Numerator {
     id: string;
-    name: string; // Descripción interna (ej: Numerador OTs Planta A)
-    prefix: string; // Ej: "OT-24-"
-    currentValue: number; // Ej: 100
-    length: number; // Ej: 4 (para generar 0100)
-    assignedType: DocumentType; // Vinculación funcional
+    name: string; 
+    prefix: string; 
+    currentValue: number; 
+    length: number; 
+    assignedType: DocumentType; 
 }
 
 export interface CompanySettings {
     name: string;
     address: string;
     phone: string;
-    taxId: string; // CUIT / RFC
+    taxId: string; 
     logoUrl?: string;
     primaryColor?: string;
     email: string;
@@ -91,63 +105,78 @@ export interface ApprovalRule {
     id: string;
     minAmount: number;
     maxAmount: number;
-    approverId: string; // Link to User
+    approverId: string;
+}
+
+// --- OPEN CONTRACTS ---
+export interface Contract {
+    id: string;
+    materialId: string;
+    materialName: string;
+    supplierId: string;
+    supplierName: string;
+    price: number;
+    currency: string;
+    validFrom: string;
+    validTo: string;
+    isActive: boolean;
 }
 
 // Commercial
 export enum OrderStatus {
   DRAFT = 'Borrador',
   SENT = 'Enviado',
-  QUOTED = 'Cotizado', // Suppliers responded
+  QUOTED = 'Cotizado', 
   PENDING_APPROVAL = 'Pendiente Aprobación',
   APPROVED = 'Aprobado',
   REJECTED = 'Rechazado',
-  CONVERTED_TO_PO = 'OC Generada', // Open PO
-  CLOSED = 'Cerrada' // Final state (Fully Received or Manually Closed)
+  CONVERTED_TO_PO = 'OC Generada', 
+  CLOSED = 'Cerrada' 
 }
 
 export interface RFQItem {
-  materialId?: string; // Optional: Can be non-codified
-  description: string; // Copied from Material OR Free text
+  materialId?: string; 
+  description: string; 
   quantity: number;
-  receivedQuantity?: number; // New: Track partial deliveries
-  targetSupplierIds?: string[]; // New: Suppliers selected specifically for this item
-  purchaseRequestId?: string; // Link back to SolPed
+  receivedQuantity?: number; 
+  targetSupplierIds?: string[]; 
+  purchaseRequestId?: string; 
 }
 
 export interface QuoteItemDetail {
-  materialId: string; // Keep ID if codified, or description hash if not
-  description?: string; // Fallback for non-codified matching
+  materialId: string; 
+  description?: string; 
   unitPrice: number;
 }
 
 export interface SupplierQuote {
   supplierId: string;
   supplierName: string;
-  price: number; // Total sum
-  items?: QuoteItemDetail[]; // New field for detailed unit prices
-  quoteReference?: string; // New: Supplier's budget/quote number
+  price: number; 
+  items?: QuoteItemDetail[]; 
+  quoteReference?: string; 
   deliveryDate?: string;
-  isSelected: boolean; // Is this the winning quote?
+  isSelected: boolean; 
 }
 
 export interface RFQ {
   id: string;
   number: string;
-  relatedRfqNumber?: string; // Trazabilidad: Número original de la RFQ si esto es una OC
+  relatedRfqNumber?: string; 
   date: string;
   items: RFQItem[];
-  selectedSuppliers: {id: string, name: string}[]; // Suppliers invited to quote
-  quotes: SupplierQuote[]; // Responses
+  selectedSuppliers: {id: string, name: string}[]; 
+  quotes: SupplierQuote[]; 
   status: OrderStatus;
-  winnerSupplierId?: string; // Who got the PO
-  requiredApproverId?: string; // ID of the user who must approve this
+  winnerSupplierId?: string; 
+  requiredApproverId?: string; 
+  origin?: 'RFQ' | 'CONTRACT';
 }
 
-// --- NEW: PURCHASE REQUESTS (SolPed) ---
+// --- PURCHASE REQUESTS (SolPed) ---
 export enum RequestStatus {
     PENDING = 'Pendiente',
-    PROCESSED = 'Procesada', // Converted to RFQ
+    PROCESSED = 'Procesada', 
     REJECTED = 'Rechazada'
 }
 
@@ -155,28 +184,17 @@ export interface PurchaseRequest {
     id: string;
     number: string;
     date: string;
-    requesterId: string; // User ID
+    requesterId: string; 
     requesterName: string;
     origin: 'MANUAL' | 'MAINTENANCE' | 'WAREHOUSE';
-    referenceId?: string; // Link to OT or Warehouse Alert
+    referenceId?: string; 
     status: RequestStatus;
     items: {
-        materialId?: string; // Optional
-        description: string; // Mandatory
+        materialId?: string; 
+        description: string; 
         quantity: number;
         unit?: string;
     }[];
-}
-
-export interface CommercialDocument {
-  id: string;
-  type: 'RFQ' | 'PURCHASE_ORDER' | 'SALES_ORDER';
-  number: string;
-  date: string;
-  entityName: string; // Client or Supplier Name
-  total: number;
-  status: OrderStatus;
-  items: any[];
 }
 
 export interface ContactPerson {
@@ -189,16 +207,14 @@ export interface ContactPerson {
 // Master Data
 export interface Client {
   id: string;
-  businessName: string; // Razón Social
+  businessName: string; 
   cuit: string;
   address: string;
-  conditionIVA: string; // Resp. Inscripto, Monotributo, etc.
+  region?: string; 
+  conditionIVA: string; 
+  emails: string[]; 
+  contacts: ContactPerson[]; 
   
-  // New Enhanced Contact Info
-  emails: string[]; // List of emails for notifications
-  contacts: ContactPerson[]; // List of physical people
-  
-  // Deprecated (Keep optional for backward compat until migrated)
   contactName?: string;
   email?: string; 
 }
@@ -212,19 +228,19 @@ export enum AssetType {
   VEHICLE = 'VEHICLE'
 }
 
+export type MaterialCategory = 'RAW_MATERIAL' | 'SUPPLY' | 'FINISHED_PRODUCT' | 'SERVICE';
+
 export interface Asset {
   id: string;
   code: string;
   name: string;
   type: AssetType;
-  subtype?: string; // New: To specify "Forklift", "Truck", "CNC", etc.
+  subtype?: string; 
   brand: string;
   model: string;
   serialNumber: string;
-  // Machine specific
   location?: string;
-  // Vehicle specific
-  plate?: string; // Patente
+  plate?: string; 
   mileage?: number;
 }
 
@@ -237,23 +253,25 @@ export interface Warehouse {
 
 export interface WarehouseLocation {
     id: string;
-    warehouseId: string; // Parent Warehouse ID
-    code: string; // e.g. RACK-A-01
+    warehouseId: string; 
+    code: string; 
     description?: string;
 }
 
 export interface Material {
   id: string;
   code: string;
-  description: string; // Nombre Corto / Título
-  technicalDescription?: string; // Nueva: Descripción técnica detallada
+  description: string; 
+  extendedDescription?: string;
+  technicalDescription?: string; 
+  category: MaterialCategory;
   unitOfMeasure: string;
   stock: number;
   minStock: number;
-  warehouse?: string; // Almacén principal
-  location: string; // Ubicación específica (Rack/Estante)
+  warehouse?: string; 
+  location: string; 
   cost: number;
-  assignedSupplierIds: string[]; // List of IDs of suppliers who sell this material
+  assignedSupplierIds: string[]; 
 }
 
 // Maintenance
@@ -272,11 +290,11 @@ export enum MaintenanceType {
 export interface MaintenanceRoutine {
     id: string;
     assetId: string;
-    name: string; // e.g. "Cambio de Filtros 500h"
-    description?: string; // Detailed description of tasks
-    frequencyDays: number; // e.g. 90 days
+    name: string; 
+    description?: string; 
+    frequencyDays: number; 
     discipline: 'Mecánica' | 'Eléctrica' | 'Hidráulica' | 'Neumática' | 'General';
-    lastExecutionDate: string; // ISO Date
+    lastExecutionDate: string; 
     estimatedHours: number;
 }
 
@@ -290,12 +308,12 @@ export interface MaintenanceOrder {
   priority: 'High' | 'Medium' | 'Low';
   reportedDate: string;
   plannedDate?: string;
-  closedDate?: string; // New field to track when it was closed
+  closedDate?: string; 
   assignedMaterials: { materialId: string; quantity: number }[];
   technician?: string;
-  origin?: 'MANUAL' | 'ROUTINE'; // To distinguish manual requests from PM planner
-  routineId?: string; // Link back to the PM Routine if applicable
-  relatedOrderId?: string; // New: Link to a parent order (e.g., a PM that generated this Corrective)
+  origin?: 'MANUAL' | 'ROUTINE'; 
+  routineId?: string; 
+  relatedOrderId?: string; 
 }
 
 // Checklists
@@ -307,9 +325,9 @@ export interface ChecklistItemDefinition {
 
 export interface ChecklistModel {
     id: string;
-    name: string; // e.g. "Inspección Diaria Autoelevador"
+    name: string; 
     assetType: AssetType;
-    assetSubtype?: string; // e.g. "Autoelevador" (optional, for specific filtering)
+    assetSubtype?: string; 
     items: ChecklistItemDefinition[];
 }
 
@@ -335,7 +353,7 @@ export interface StockMovement {
   id: string;
   type: 'IN' | 'OUT' | 'ADJUSTMENT';
   date: string;
-  reference: string; // PO number, Work Order, Remito
+  reference: string; 
   materialId: string;
   quantity: number;
   reason?: string;
